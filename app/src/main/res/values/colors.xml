@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Base colors -->
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+    
+    <!-- Primary theme colors - Teal -->
+    <color name="primary">#00897B</color> <!-- Teal - Primary -->
+    <color name="primary_dark">#00695C</color> <!-- Darker Teal for status bar -->
+    <color name="primary_light">#4DB6AC</color> <!-- Light Teal for secondary elements -->
+    <color name="accent">#FF7043</color> <!-- Orange - Accent -->
+    
+    <!-- Secondary colors - Orange -->
+    <color name="secondary">#FF7043</color> <!-- Orange - Accent -->
+    <color name="secondary_light">#FFAB91</color> <!-- Light Orange -->
+    <color name="secondary_dark">#E64A19</color> <!-- Dark Orange -->
+    
+    <!-- Text colors -->
+    <color name="text_primary">#212121</color> <!-- Near black for main text -->
+    <color name="text_secondary">#757575</color> <!-- Dark gray for secondary text -->
+    <color name="text_hint">#BDBDBD</color> <!-- Light gray for hints -->
+    
+    <!-- Background colors -->
+    <color name="background">#FAFAFA</color> <!-- Near white for main background -->
+    <color name="surface">#FFFFFF</color> <!-- Pure white for cards -->
+    <color name="card_background">#FFFFFF</color> <!-- White for card backgrounds -->
+    
+    <!-- Status colors -->
+    <color name="success">#00897B</color> <!-- Teal for success -->
+    <color name="error">#F44336</color> <!-- Red for errors -->
+    <color name="warning">#FF7043</color> <!-- Orange for warnings -->
+    <color name="info">#00897B</color> <!-- Teal for info -->
+</resources>
