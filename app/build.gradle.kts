@@ -1,5 +1,6 @@
 plugins {
     alias(libs.plugins.android.application)
+    alias(libs.plugins.google.gms.google.services)
 }
 
 android {
@@ -8,7 +9,7 @@ android {
 
     defaultConfig {
         applicationId = "hcmute.edu.vn.thongvavan.finalproject"
-        minSdk = 28
+        minSdk = 26
         targetSdk = 35
         versionCode = 1
         versionName = "1.0"
@@ -48,7 +49,25 @@ dependencies {
     implementation ("com.google.mlkit:text-recognition-japanese:16.0.1")
     // To recognize Korean script
     implementation ("com.google.mlkit:text-recognition-korean:16.0.1")
+
+    //Add Google Translate API
+    implementation ("com.google.mlkit:translate:17.0.3")
     
+    // Firebase
+    implementation("com.google.firebase:firebase-core:21.1.1")
+    implementation("com.google.firebase:firebase-common:20.4.2")
+    implementation("com.google.firebase:firebase-analytics:21.5.1")
+    implementation(libs.language.id.common)
+    implementation(libs.firebase.database)
+
+    // CameraX dependencies
+    val camerax_version = "1.3.0"
+    implementation ("androidx.camera:camera-core:${camerax_version}")
+    implementation ("androidx.camera:camera-camera2:${camerax_version}")
+    implementation ("androidx.camera:camera-lifecycle:${camerax_version}")
+    implementation ("androidx.camera:camera-view:${camerax_version}")
+    implementation ("androidx.camera:camera-extensions:${camerax_version}")
+
     // MVVM Architecture Components
     implementation("androidx.lifecycle:lifecycle-viewmodel:2.7.0")
     implementation("androidx.lifecycle:lifecycle-livedata:2.7.0")

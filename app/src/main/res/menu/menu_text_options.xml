@@ -5,18 +5,18 @@
     <item
         android:id="@+id/action_copy"
         android:icon="@android:drawable/ic_menu_save"
-        android:title="Copy Text"
+        android:title="Sao chép"
         app:showAsAction="never" />
     
     <item
         android:id="@+id/action_share"
         android:icon="@android:drawable/ic_menu_share"
-        android:title="Share Text"
+        android:title="Chia sẻ"
         app:showAsAction="never" />
     
     <item
         android:id="@+id/action_clear"
         android:icon="@android:drawable/ic_menu_delete"
-        android:title="Clear Text"
+        android:title="Xoá"
         app:showAsAction="never" />
 </menu>

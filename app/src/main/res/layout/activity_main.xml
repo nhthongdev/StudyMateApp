@@ -54,7 +54,9 @@
         android:clickable="true"
         android:focusable="true"
         android:visibility="gone"
-        app:layout_behavior="@string/appbar_scrolling_view_behavior">
+        android:elevation="10dp"
+        android:translationZ="10dp"
+        android:stateListAnimator="@null">
 
         <androidx.cardview.widget.CardView
             android:layout_width="wrap_content"
@@ -134,7 +136,7 @@
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:fontFamily="sans-serif-medium"
-                            android:text="Welcome to StudyMate"
+                            android:text="Chào mừng đến StudyMate"
                             android:textColor="@color/primary_dark"
                             android:textSize="18sp"
                             android:textStyle="bold" />
@@ -143,7 +145,7 @@
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="8dp"
-                            android:text="Capture text from your study materials and translate it instantly"
+                            android:text="Ghi lại văn bản từ tài liệu học tập của bạn và dịch ngay lập tức"
                             android:textColor="@color/text_secondary" />
                     </LinearLayout>
                 </LinearLayout>
@@ -178,14 +180,24 @@
                             app:tint="@color/white" />
 
                         <TextView
-                            android:layout_width="match_parent"
+                            android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_marginStart="12dp"
+                            android:layout_weight="1"
                             android:fontFamily="sans-serif-medium"
-                            android:text="Capture Image"
+                            android:text="Tải ảnh"
                             android:textColor="@color/primary"
                             android:textSize="18sp"
                             android:textStyle="bold" />
+                            
+                        <ImageButton
+                            android:id="@+id/clearImageBtn"
+                            android:layout_width="40dp"
+                            android:layout_height="40dp"
+                            android:background="?attr/selectableItemBackgroundBorderless"
+                            android:contentDescription="Xóa ảnh"
+                            android:src="@android:drawable/ic_menu_close_clear_cancel"
+                            app:tint="@color/primary" />
                     </LinearLayout>
 
                     <!-- Image Preview Container -->
@@ -204,7 +216,7 @@
                             android:layout_gravity="center"
                             android:adjustViewBounds="true"
                             android:padding="8dp"
-                            android:scaleType="centerInside"
+                            android:scaleType="fitCenter"
                             android:src="@drawable/ic_image_placeholder"
                             app:shapeAppearanceOverlay="@style/RoundedImageView"/>
                     </FrameLayout>
@@ -225,7 +237,7 @@
                             android:background="@drawable/bg_button_accent"
                             android:elevation="4dp"
                             android:paddingVertical="14dp"
-                            android:text="Capture Image"
+                            android:text="Tải ảnh"
                             android:textAllCaps="false"
                             android:textColor="@color/white"
                             android:textStyle="bold"
@@ -243,7 +255,7 @@
                             android:background="@drawable/bg_button_accent"
                             android:elevation="4dp"
                             android:paddingVertical="14dp"
-                            android:text="Recognize Text"
+                            android:text="Nhận Diện"
                             android:textAllCaps="false"
                             android:textColor="@color/white"
                             android:textStyle="bold"
@@ -268,62 +280,274 @@
                     android:orientation="vertical"
                     android:padding="16dp">
 
+                    <!-- Header with Real-time Translation Button -->
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:gravity="center_vertical"
                         android:orientation="horizontal">
 
-                        <ImageView
-                            android:layout_width="32dp"
-                            android:layout_height="32dp"
-                            android:background="@drawable/bg_button_accent"
-                            android:padding="6dp"
-                            android:src="@drawable/ic_document_scanner_24"
-                            app:tint="@color/white" />
+                        <!-- Source Language -->
+                        <TextView
+                            android:id="@+id/sourceLanguageTv"
+                            android:layout_width="0dp"
+                            android:layout_height="58dp"
+                            android:layout_weight="1"
+                            android:background="@drawable/bg_language_selector"
+                            android:drawableStart="@drawable/ic_translate_24"
+                            android:drawablePadding="8dp"
+                            android:fontFamily="sans-serif-medium"
+                            android:gravity="center"
+                            android:paddingVertical="10dp"
+                            android:text="Phát hiện ngôn ngữ"
+                            android:textColor="@color/primary"
+                            android:textSize="14sp" />
+
+                        <!-- Swap Button -->
+                        <ImageButton
+                            android:id="@+id/swapLanguagesBtn"
+                            android:layout_width="48dp"
+                            android:layout_height="48dp"
+                            android:background="?attr/selectableItemBackgroundBorderless"
+                            android:contentDescription="Hoán đổi ngôn ngữ"
+                            android:padding="8dp"
+                            android:src="@drawable/ic_swap_horiz_24" />
+
+                        <!-- Target Language Display -->
+                        <TextView
+                            android:id="@+id/targetLanguageDisplay"
+                            android:layout_width="0dp"
+                            android:layout_height="58dp"
+                            android:layout_weight="1"
+                            android:background="@drawable/bg_language_selector"
+                            android:drawableEnd="@drawable/ic_arrow_downward_24"
+                            android:drawablePadding="8dp"
+                            android:fontFamily="sans-serif-medium"
+                            android:gravity="center"
+                            android:paddingVertical="10dp"
+                            android:text="Chọn ngôn ngữ"
+                            android:textColor="@color/primary"
+                            android:textSize="14sp" />
+                    </LinearLayout>
+
+                    <!-- AutoCompleteTextView for target language selection (hidden by default) -->
+                    <com.google.android.material.textfield.TextInputLayout
+                        android:id="@+id/targetLanguageLayout"
+                        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:visibility="gone"
+                        app:boxCornerRadiusBottomEnd="8dp"
+                        app:boxCornerRadiusBottomStart="8dp"
+                        app:boxCornerRadiusTopEnd="8dp"
+                        app:boxCornerRadiusTopStart="8dp">
+
+                        <AutoCompleteTextView
+                            android:id="@+id/targetLanguageSpinner"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:hint="Chọn ngôn ngữ"
+                            android:inputType="none"
+                            android:padding="12dp" />
+                    </com.google.android.material.textfield.TextInputLayout>
+
+                    <!-- Source Text Container -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="16dp"
+                        android:background="@drawable/bg_text_container"
+                        android:orientation="vertical">
 
                         <TextView
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:layout_marginStart="12dp"
                             android:fontFamily="sans-serif-medium"
-                            android:text="Recognized Text"
+                            android:text="Nhận diện và Dịch văn bản"
                             android:textColor="@color/primary"
-                            android:textSize="18sp"
+                            android:textSize="16sp"
                             android:textStyle="bold" />
+
+                        <!-- Container for EditText -->
+                        <EditText
+                            android:id="@+id/recognizedTextEt"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:background="@null"
+                            android:gravity="top"
+                            android:hint="Văn bản sẽ xuất hiện ở đây sau khi nhận diện"
+                            android:importantForAutofill="no"
+                            android:inputType="textMultiLine"
+                            android:minHeight="100dp"
+                            android:textColor="@color/text_primary"
+                            android:textSize="16sp" />
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:gravity="end"
+                            android:orientation="horizontal">
+
+                            <ImageButton
+                                android:id="@+id/speakSourceBtn"
+                                android:layout_width="48dp"
+                                android:layout_height="48dp"
+                                android:layout_marginEnd="4dp"
+                                android:background="?attr/selectableItemBackgroundBorderless"
+                                android:contentDescription="Đọc văn bản nguồn"
+                                android:padding="8dp"
+                                android:src="@drawable/ic_volume_up_24" />
+
+                            <ImageButton
+                                android:id="@+id/copySourceBtn"
+                                android:layout_width="48dp"
+                                android:layout_height="48dp"
+                                android:background="?attr/selectableItemBackgroundBorderless"
+                                android:contentDescription="Sao chép văn bản nguồn"
+                                android:padding="8dp"
+                                android:src="@drawable/ic_content_copy_24" />
+                                
+                            <ImageButton
+                                android:id="@+id/clearTextBtn"
+                                android:layout_width="48dp"
+                                android:layout_height="48dp"
+                                android:layout_marginStart="4dp"
+                                android:background="?attr/selectableItemBackgroundBorderless"
+                                android:contentDescription="Xóa văn bản"
+                                android:padding="8dp"
+                                android:src="@android:drawable/ic_menu_close_clear_cancel"
+                                app:tint="@color/primary" />
+                        </LinearLayout>
                     </LinearLayout>
 
-                    <EditText
-                        android:id="@+id/recognizedTextEt"
+                    <!-- Translation Controls -->
+                    <LinearLayout
+                        android:id="@+id/translationControlsLayout"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="16dp"
-                        android:background="@drawable/bg_edit_text"
-                        android:gravity="top"
-                        android:hint="Text will appear here after recognition"
-                        android:inputType="textMultiLine"
-                        android:minHeight="150dp"
-                        android:padding="16dp"
-                        android:textColor="@color/text_primary"
-                        android:textSize="16sp" />
+                        android:layout_marginTop="8dp"
+                        android:orientation="horizontal"
+                        android:visibility="visible">
 
-                    <!-- Future Translation Button -->
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/translateBtn"
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/translateBtn"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:backgroundTint="@color/primary"
+                            android:padding="12dp"
+                            android:text="Dịch"
+                            android:textColor="@color/white"
+                            app:cornerRadius="8dp"
+                            app:icon="@drawable/ic_translate_24"
+                            app:iconTint="@color/white" />
+                    </LinearLayout>
+
+                    <!-- Translated Text Container -->
+                    <LinearLayout
+                        android:id="@+id/translatedTextLayout"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="16dp"
-                        android:background="@drawable/bg_button_accent"
-                        android:drawableStart="@drawable/ic_translate_24"
-                        android:drawableTint="@color/white"
-                        android:elevation="4dp"
-                        android:paddingVertical="14dp"
-                        android:text="Translate Text"
-                        android:textAllCaps="false"
-                        android:textColor="@color/white"
-                        android:textStyle="bold"
-                        android:visibility="invisible"
-                        app:cornerRadius="12dp" />
+                        android:background="@drawable/bg_text_container"
+                        android:orientation="vertical"
+                        android:visibility="gone">
+
+                        <TextView
+                            android:id="@+id/targetLanguageLabelTv"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:fontFamily="sans-serif-medium"
+                            android:text="Văn bản đã dịch"
+                            android:textColor="@color/primary"
+                            android:textSize="16sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/translatedTextTv"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:minHeight="100dp"
+                            android:textColor="@color/text_primary"
+                            android:textSize="16sp" />
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:gravity="end"
+                            android:orientation="horizontal">
+
+                            <ImageButton
+                                android:id="@+id/copyTranslatedBtn"
+                                android:layout_width="48dp"
+                                android:layout_height="48dp"
+                                android:layout_marginEnd="4dp"
+                                android:background="?attr/selectableItemBackgroundBorderless"
+                                android:contentDescription="Sao chép văn bản đã dịch"
+                                android:padding="8dp"
+                                android:src="@drawable/ic_content_copy_24" />
+
+                            <ImageButton
+                                android:id="@+id/shareTranslatedBtn"
+                                android:layout_width="48dp"
+                                android:layout_height="48dp"
+                                android:layout_marginEnd="4dp"
+                                android:background="?attr/selectableItemBackgroundBorderless"
+                                android:contentDescription="Chia sẻ văn bản đã dịch"
+                                android:padding="8dp"
+                                android:src="@drawable/ic_share_24" />
+
+                            <ImageButton
+                                android:id="@+id/speakTranslatedBtn"
+                                android:layout_width="48dp"
+                                android:layout_height="48dp"
+                                android:background="?attr/selectableItemBackgroundBorderless"
+                                android:contentDescription="Đọc văn bản đã dịch"
+                                android:padding="8dp"
+                                android:src="@drawable/ic_volume_up_24" />
+                        </LinearLayout>
+                    </LinearLayout>
+
+                    <!-- Bottom Action Buttons -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="16dp"
+                        android:gravity="center"
+                        android:orientation="horizontal">
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/historyBtn"
+                            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginEnd="8dp"
+                            android:text="Lịch sử"
+                            android:textColor="@color/primary"
+                            app:cornerRadius="20dp"
+                            app:icon="@drawable/ic_history_24"
+                            app:iconTint="@color/primary"
+                            app:strokeColor="@color/primary" />
+
+                        <!-- Tạm thời ẩn nút dịch thời gian thực vì chức năng chưa phát triển -->
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/realtimeTranslateBtn"
+                            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Dịch thời gian thực"
+                            android:textColor="@color/primary"
+                            android:visibility="gone"
+                            app:cornerRadius="20dp"
+                            app:icon="@drawable/ic_videocam_24"
+                            app:iconTint="@color/primary"
+                            app:strokeColor="@color/primary" />
+                    </LinearLayout>
                 </LinearLayout>
             </androidx.cardview.widget.CardView>
         </LinearLayout>

@@ -24,10 +24,19 @@
     <color name="background">#FAFAFA</color> <!-- Near white for main background -->
     <color name="surface">#FFFFFF</color> <!-- Pure white for cards -->
     <color name="card_background">#FFFFFF</color> <!-- White for card backgrounds -->
+    <color name="divider">#DDDDDD</color> <!-- Light gray for dividers -->
     
     <!-- Status colors -->
     <color name="success">#00897B</color> <!-- Teal for success -->
     <color name="error">#F44336</color> <!-- Red for errors -->
     <color name="warning">#FF7043</color> <!-- Orange for warnings -->
     <color name="info">#00897B</color> <!-- Teal for info -->
+    
+    <!-- Real-time translation colors -->
+    <color name="camera_overlay">#00695C</color> <!-- Semi-transparent dark teal for camera overlay -->
+    <color name="recognized_text_color">#FFAB91</color> <!-- Light orange for recognized text -->
+    <color name="translated_text_color">#FFFFFF</color> <!-- White for translated text -->
+    <color name="camera_background">#00695C</color> <!-- Teal for camera background -->
+    <color name="control_background">#00695C</color> <!-- Semi-transparent dark teal for controls -->
+    <color name="control_highlight">#FF7043</color> <!-- Orange accent for control highlights -->
 </resources>

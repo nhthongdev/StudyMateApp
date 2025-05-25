@@ -1,3 +1,10 @@
 <resources>
     <string name="app_name">StudyMate</string>
+    
+    <!-- Accessibility descriptions -->
+    <string name="back_button_description">Quay lại màn hình trước</string>
+    <string name="select_target_language">Chọn ngôn ngữ đích để dịch</string>
+    <string name="camera_preview_description">Xem trước camera để nhận dạng văn bản</string>
+    <string name="recognized_text_label">Văn bản đã nhận dạng</string>
+    <string name="translated_text_label">Văn bản đã dịch</string>
 </resources>

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "71765162653",
+    "project_id": "study-mate-app-357ce",
+    "storage_bucket": "study-mate-app-357ce.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:71765162653:android:63165fe8ffd448340bb274",
+        "android_client_info": {
+          "package_name": "hcmute.edu.vn.thongvavan.finalproject"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAeBKCp0XzuywyhjRxQPb7FD4RF3NE38oc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

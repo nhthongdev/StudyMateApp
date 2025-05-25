@@ -28,6 +28,14 @@
 
     <style name="Theme.FinalProject" parent="Base.Theme.FinalProject" />
     
+    <!-- No Action Bar theme for full-screen activities -->
+    <style name="Theme.FinalProject.NoActionBar" parent="Theme.FinalProject">
+        <item name="windowActionBar">false</item>
+        <item name="windowNoTitle">true</item>
+        <item name="android:windowFullscreen">true</item>
+        <item name="android:windowContentOverlay">@null</item>
+    </style>
+    
     <!-- Button style -->
     <style name="AppButtonStyle" parent="Widget.MaterialComponents.Button">
         <item name="cornerRadius">12dp</item>

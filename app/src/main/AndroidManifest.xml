@@ -12,13 +12,20 @@
     <!-- For Android 11+ -->
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
 
+    <uses-permission android:name="android.permission.INTERNET"/>
+    
+    <!-- Vibration permission -->
+    <uses-permission android:name="android.permission.VIBRATE" />
+
     <application
+        android:name=".StudyMateApplication"
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
+        android:usesCleartextTraffic="true"
         android:supportsRtl="true"
         android:theme="@style/Theme.FinalProject"
         tools:targetApi="31">
@@ -32,6 +39,13 @@
             </intent-filter>
         </activity>
         
+<!--        &lt;!&ndash; Real-time Translation Activity &ndash;&gt;-->
+<!--        <activity-->
+<!--            android:name=".RealTimeTranslationActivity"-->
+<!--            android:exported="false"-->
+<!--            android:screenOrientation="portrait"-->
+<!--            android:theme="@style/Theme.FinalProject.NoActionBar" />-->
+<!--        -->
         <!-- FileProvider để chia sẻ ảnh với camera app -->
         <provider
             android:name="androidx.core.content.FileProvider"
