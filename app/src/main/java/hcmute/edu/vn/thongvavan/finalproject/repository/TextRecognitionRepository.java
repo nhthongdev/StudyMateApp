@@ -4,124 +4,85 @@ import android.content.Context;
 import android.net.Uri;
 import android.util.Log;
 
-import androidx.annotation.NonNull;
 import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
-
-import com.google.android.gms.tasks.OnFailureListener;
-import com.google.android.gms.tasks.OnSuccessListener;
-import com.google.mlkit.vision.common.InputImage;
-import com.google.mlkit.vision.text.Text;
-import com.google.mlkit.vision.text.TextRecognition;
-import com.google.mlkit.vision.text.TextRecognizer;
-import com.google.mlkit.vision.text.latin.TextRecognizerOptions;
-
-import java.io.IOException;
 
 import hcmute.edu.vn.thongvavan.finalproject.model.RecognizedText;
 import hcmute.edu.vn.thongvavan.finalproject.utils.TextRecognitionUtils;
 
 /**
- * Repository for text recognition operations
+ * Repository cho các hoạt động nhận diện văn bản
  */
 public class TextRecognitionRepository {
     private static final String TAG = "TextRecognitionRepo";
     
     private final Context context;
-    private final TextRecognizer textRecognizer;
     
-    // LiveData for loading state
+    // LiveData cho trạng thái loading
     private final MutableLiveData<Boolean> isLoading = new MutableLiveData<>(false);
     private final MutableLiveData<String> loadingMessage = new MutableLiveData<>("");
     
     public TextRecognitionRepository(Context context) {
         this.context = context;
-        
-        // Initialize text recognizer
-        textRecognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS);
     }
     
     /**
-     * Get loading state
-     * @return LiveData containing loading state
+     * Lấy trạng thái loading
+     * @return LiveData chứa trạng thái loading
      */
     public LiveData<Boolean> isLoading() {
         return isLoading;
     }
     
     /**
-     * Get loading message
-     * @return LiveData containing loading message
+     * Lấy thông báo loading
+     * @return LiveData chứa thông báo loading
      */
     public LiveData<String> getLoadingMessage() {
         return loadingMessage;
     }
     
     /**
-     * Recognize text from an image URI
-     * @param imageUri URI of the image to recognize text from
-     * @return LiveData containing the recognized text result
+     * Nhận diện văn bản từ URI ảnh
+     * @param imageUri URI của ảnh cần nhận diện văn bản
+     * @return LiveData chứa kết quả văn bản đã nhận diện
      */
     public LiveData<RecognizedText> recognizeTextFromImage(Uri imageUri) {
         MutableLiveData<RecognizedText> resultLiveData = new MutableLiveData<>();
         
-        // Update loading state
+        // Cập nhật trạng thái loading
         isLoading.postValue(true);
-        loadingMessage.postValue("Preparing image...");
+        loadingMessage.postValue("Đang chuẩn bị ảnh...");
         
-        try {
-            // Prepare InputImage from image uri
-            InputImage inputImage = InputImage.fromFilePath(context, imageUri);
+        // Sử dụng TextRecognitionUtils để nhận diện văn bản
+        TextRecognitionUtils.recognizeTextFromImage(context, imageUri, new TextRecognitionUtils.TextRecognitionListener() {
+            @Override
+            public void onSuccess(RecognizedText recognizedText) {
+                // Cập nhật trạng thái loading
+                isLoading.postValue(false);
+                
+                // Gửi kết quả
+                resultLiveData.postValue(recognizedText);
+            }
             
-            // Update loading message
-            loadingMessage.postValue("Recognizing text...");
-            
-            // Start text recognition process
-            textRecognizer.process(inputImage)
-                    .addOnSuccessListener(new OnSuccessListener<Text>() {
-                        @Override
-                        public void onSuccess(Text text) {
-                            // Update loading state
-                            isLoading.postValue(false);
-                            
-                            // Process the recognized text for better formatting
-                            String recognizedText = TextRecognitionUtils.processRecognizedText(text);
-                            Log.d(TAG, "onSuccess: recognizedText: " + recognizedText);
-                            
-                            // Get text statistics
-                            String statistics = TextRecognitionUtils.getTextStatistics(recognizedText);
-                            
-                            // Create and post result
-                            resultLiveData.postValue(new RecognizedText(recognizedText, statistics));
-                        }
-                    })
-                    .addOnFailureListener(new OnFailureListener() {
-                        @Override
-                        public void onFailure(@NonNull Exception e) {
-                            // Update loading state
-                            isLoading.postValue(false);
-                            Log.d(TAG, "onFailure: ", e);
-                            
-                            // Create and post error result
-                            resultLiveData.postValue(new RecognizedText(e.getMessage()));
-                        }
-                    });
-        } catch (IOException e) {
-            // Update loading state
-            isLoading.postValue(false);
-            Log.d(TAG, "recognizeTextFromImage: ", e);
-            
-            // Create and post error result
-            resultLiveData.postValue(new RecognizedText(e.getMessage()));
-        }
+            @Override
+            public void onError(String errorMessage) {
+                // Cập nhật trạng thái loading
+                isLoading.postValue(false);
+                Log.e(TAG, "onError: " + errorMessage);
+                
+                // Tạo và gửi kết quả lỗi
+                resultLiveData.postValue(new RecognizedText(errorMessage));
+            }
+        });
         
         return resultLiveData;
     }
     
     /**
-     * Release resources when no longer needed
+     * Giải phóng tài nguyên khi không còn cần thiết
      */
     public void shutdown() {
-        textRecognizer.close();
+        // Không cần đóng TextRecognizer vì nó được đóng trong TextRecognitionUtils
     }
 }

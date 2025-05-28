@@ -39,14 +39,18 @@
             </intent-filter>
         </activity>
         
-<!--        &lt;!&ndash; Real-time Translation Activity &ndash;&gt;-->
-<!--        <activity-->
-<!--            android:name=".RealTimeTranslationActivity"-->
-<!--            android:exported="false"-->
-<!--            android:screenOrientation="portrait"-->
-<!--            android:theme="@style/Theme.FinalProject.NoActionBar" />-->
-<!--        -->
-        <!-- FileProvider để chia sẻ ảnh với camera app -->
+        <!-- History Activity -->
+        <activity
+            android:name=".HistoryActivity"
+            android:exported="false" />
+            
+        <!-- Real-time Translation Activity -->
+        <activity
+            android:name=".RealTimeTranslationActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.FinalProject.Fullscreen" />
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"

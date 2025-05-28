@@ -74,6 +74,9 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime:2.7.0")
     implementation("androidx.lifecycle:lifecycle-viewmodel-savedstate:2.7.0")
     
+    // Gson for JSON serialization/deserialization
+    implementation("com.google.code.gson:gson:2.10.1")
+    
     // Optional: for annotation processor
     annotationProcessor("androidx.lifecycle:lifecycle-compiler:2.7.0")
 

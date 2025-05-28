@@ -33,14 +33,25 @@
                     app:tint="@color/white" />
 
                 <TextView
-                    android:layout_width="wrap_content"
+                    android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_marginStart="8dp"
+                    android:layout_weight="1"
                     android:fontFamily="sans-serif-medium"
                     android:text="StudyMate"
                     android:textColor="@color/white"
                     android:textSize="22sp"
                     android:textStyle="bold" />
+                    
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/historyBtn"
+                    style="@style/Widget.MaterialComponents.Button.TextButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Lịch sử"
+                    android:textColor="@color/white"
+                    app:icon="@drawable/ic_history_24"
+                    app:iconTint="@color/white" />
             </LinearLayout>
         </androidx.appcompat.widget.Toolbar>
     </com.google.android.material.appbar.AppBarLayout>
@@ -192,8 +203,8 @@
                             
                         <ImageButton
                             android:id="@+id/clearImageBtn"
-                            android:layout_width="40dp"
-                            android:layout_height="40dp"
+                            android:layout_width="48dp"
+                            android:layout_height="48dp"
                             android:background="?attr/selectableItemBackgroundBorderless"
                             android:contentDescription="Xóa ảnh"
                             android:src="@android:drawable/ic_menu_close_clear_cancel"
@@ -483,6 +494,15 @@
                             android:orientation="horizontal">
 
                             <ImageButton
+                                android:id="@+id/speakTranslatedBtn"
+                                android:layout_width="48dp"
+                                android:layout_height="48dp"
+                                android:background="?attr/selectableItemBackgroundBorderless"
+                                android:contentDescription="Đọc văn bản đã dịch"
+                                android:padding="8dp"
+                                android:src="@drawable/ic_volume_up_24" />
+
+                            <ImageButton
                                 android:id="@+id/copyTranslatedBtn"
                                 android:layout_width="48dp"
                                 android:layout_height="48dp"
@@ -502,54 +522,21 @@
                                 android:padding="8dp"
                                 android:src="@drawable/ic_share_24" />
 
-                            <ImageButton
-                                android:id="@+id/speakTranslatedBtn"
-                                android:layout_width="48dp"
-                                android:layout_height="48dp"
-                                android:background="?attr/selectableItemBackgroundBorderless"
-                                android:contentDescription="Đọc văn bản đã dịch"
-                                android:padding="8dp"
-                                android:src="@drawable/ic_volume_up_24" />
                         </LinearLayout>
-                    </LinearLayout>
-
-                    <!-- Bottom Action Buttons -->
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="16dp"
-                        android:gravity="center"
-                        android:orientation="horizontal">
-
-                        <com.google.android.material.button.MaterialButton
-                            android:id="@+id/historyBtn"
-                            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginEnd="8dp"
-                            android:text="Lịch sử"
-                            android:textColor="@color/primary"
-                            app:cornerRadius="20dp"
-                            app:icon="@drawable/ic_history_24"
-                            app:iconTint="@color/primary"
-                            app:strokeColor="@color/primary" />
-
-                        <!-- Tạm thời ẩn nút dịch thời gian thực vì chức năng chưa phát triển -->
-                        <com.google.android.material.button.MaterialButton
-                            android:id="@+id/realtimeTranslateBtn"
-                            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="Dịch thời gian thực"
-                            android:textColor="@color/primary"
-                            android:visibility="gone"
-                            app:cornerRadius="20dp"
-                            app:icon="@drawable/ic_videocam_24"
-                            app:iconTint="@color/primary"
-                            app:strokeColor="@color/primary" />
                     </LinearLayout>
                 </LinearLayout>
             </androidx.cardview.widget.CardView>
         </LinearLayout>
     </androidx.core.widget.NestedScrollView>
+    <!-- Floating Action Button -->
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/realtimeTranslateBtn"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|end"
+        android:layout_margin="16dp"
+        android:contentDescription="Dịch thời gian thực"
+        android:src="@drawable/ic_videocam_24"
+        app:backgroundTint="@color/secondary"
+        app:tint="@android:color/white" />
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

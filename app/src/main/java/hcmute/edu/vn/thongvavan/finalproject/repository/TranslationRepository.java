@@ -17,6 +17,7 @@ import com.google.mlkit.common.model.DownloadConditions;
 import com.google.mlkit.common.model.RemoteModelManager;
 import com.google.mlkit.nl.languageid.LanguageIdentification;
 import com.google.mlkit.nl.languageid.LanguageIdentifier;
+import hcmute.edu.vn.thongvavan.finalproject.utils.LanguageIdentificationUtils;
 import com.google.mlkit.nl.translate.TranslateLanguage;
 import com.google.mlkit.nl.translate.TranslateRemoteModel;
 import com.google.mlkit.nl.translate.Translation;
@@ -49,6 +50,11 @@ public class TranslationRepository {
 
     private Translator translator;
     private LanguageIdentifier languageIdentifier;
+    
+    // Các biến cho việc xử lý nhận diện ngôn ngữ với độ trễ
+    private static final long DEBOUNCE_DELAY = 500; // 500ms delay
+    private final Handler debounceHandler = new Handler(Looper.getMainLooper());
+    private Runnable languageDetectionRunnable;
 
     public TranslationRepository(Application application) {
         this.application = application;
@@ -185,10 +191,7 @@ public class TranslationRepository {
         return detectedLanguage;
     }
 
-    // Biến để theo dõi thời gian chờ giữa các lần gọi identifyLanguage
-    private Handler debounceHandler = new Handler(Looper.getMainLooper());
-    private Runnable languageDetectionRunnable;
-    private static final long DEBOUNCE_DELAY = 500; // 500ms
+    // Biến đã được khai báo ở trên
 
     /**
      * Identify the language of a text
@@ -215,141 +218,74 @@ public class TranslationRepository {
         languageDetectionRunnable = () -> {
             // Thực hiện trên luồng phụ để tránh khóa luồng UI
             new Thread(() -> {
-                // Sử dụng phương pháp phát hiện ngôn ngữ dựa trên mẫu ký tự đặc biệt
-                final String detectedCode = detectLanguageFromText(text);
+                // Sử dụng lớp LanguageIdentificationUtils mới để nhận diện ngôn ngữ
+                final LanguageIdentificationUtils languageIdUtils = LanguageIdentificationUtils.getInstance(application);
                 
-                // Chuyển kết quả về luồng chính để cập nhật UI
-                new Handler(Looper.getMainLooper()).post(() -> {
-                    // Nếu ML Kit đã được khởi tạo thành công, thử sử dụng nó như một phương pháp bổ sung
-                    if (languageIdentifier != null) {
-                        try {
-                            // Sử dụng ML Kit để nhận diện ngôn ngữ
-                            languageIdentifier.identifyLanguage(text)
-                                    .addOnSuccessListener(languageCode -> {
-                                        if (!languageCode.equals("und")) {
-                                            Log.i(TAG, "ML Kit detected language: " + languageCode);
-                                            
-                                            // Ưu tiên kiểm tra các ngôn ngữ dựa trên mẫu ký tự đặc trưng
-                                            if (!detectedCode.equals("en")) {
-                                                Log.i(TAG, "Using pattern detection result (strong match): " + detectedCode);
-                                                detectedLanguage.setValue(detectedCode);
-                                            }
-                                            // Kiểm tra nếu văn bản chứa nhiều từ tiếng Việt thông dụng
-                                            else if (containsVietnameseWords(text)) {
-                                                Log.i(TAG, "Detected Vietnamese words in text");
-                                                detectedLanguage.setValue("vi");
-                                            }
-                                            // Nếu ML Kit phát hiện ngôn ngữ không phải tiếng Anh và được hỗ trợ bởi Translation
-                                            else if (!languageCode.equals("en") && isLanguageSupportedByTranslation(languageCode)) {
-                                                Log.i(TAG, "Using ML Kit non-English result: " + languageCode);
-                                                detectedLanguage.setValue(languageCode);
-                                            }
-                                            // Thử phát hiện các ngôn ngữ phổ biến khác
-                                            else {
-                                                String detectedLanguageCode = detectCommonLanguages(text);
-                                                if (!detectedLanguageCode.equals("en")) {
-                                                    Log.i(TAG, "Detected common language: " + detectedLanguageCode);
-                                                    detectedLanguage.setValue(detectedLanguageCode);
-                                                } 
-                                                // Cuối cùng mới sử dụng kết quả ML Kit nếu là tiếng Anh
-                                                else {
-                                                    Log.i(TAG, "Using ML Kit result: " + languageCode);
-                                                    detectedLanguage.setValue(languageCode);
-                                                }
-                                            }
-                                        } else {
-                                            // ML Kit không thể xác định ngôn ngữ, sử dụng kết quả từ phương pháp mẫu
-                                            Log.i(TAG, "ML Kit couldn't identify language, using pattern detection: " + detectedCode);
-                                            detectedLanguage.setValue(detectedCode);
-                                        }
-                                        isLoading.setValue(false);
-                                    })
-                                    .addOnFailureListener(e -> {
-                                        Log.e(TAG, "ML Kit language identification failed: " + e.getMessage());
-                                        // Sử dụng kết quả từ phương pháp mẫu
-                                        detectedLanguage.setValue(detectedCode);
-                                        isLoading.setValue(false);
-                                    });
-                        } catch (Exception e) {
-                            Log.e(TAG, "Exception during ML Kit language identification: " + e.getMessage());
-                            // Sử dụng kết quả từ phương pháp mẫu
-                            detectedLanguage.setValue(detectedCode);
-                            isLoading.setValue(false);
-                        }
-                    } else {
-                        // ML Kit không khả dụng, chỉ sử dụng phương pháp mẫu
-                        Log.i(TAG, "Using only pattern-based language detection: " + detectedCode);
-                        detectedLanguage.setValue(detectedCode);
+                // Kiểm tra trước xem văn bản có phải tiếng Việt không
+                boolean isVietnamese = checkVietnameseLanguage(text);
+                if (isVietnamese) {
+                    Log.i(TAG, "Detected Vietnamese language based on character patterns");
+                    new Handler(Looper.getMainLooper()).post(() -> {
+                        detectedLanguage.setValue("vi"); // Mã ngôn ngữ tiếng Việt
                         isLoading.setValue(false);
+                    });
+                    return;
+                }
+                
+                // Kiểm tra xem văn bản có phải tiếng Tây Ban Nha không
+                boolean isSpanish = checkSpanishLanguage(text);
+                if (isSpanish) {
+                    Log.i(TAG, "Detected Spanish language based on word patterns");
+                    new Handler(Looper.getMainLooper()).post(() -> {
+                        detectedLanguage.setValue("es"); // Mã ngôn ngữ tiếng Tây Ban Nha
+                        isLoading.setValue(false);
+                    });
+                    return;
+                }
+                
+                // Nếu không phải tiếng Tây Ban Nha, tiếp tục sử dụng LanguageIdentificationUtils
+                languageIdUtils.identifyLanguage(text, new LanguageIdentificationUtils.LanguageIdentificationListener() {
+                    @Override
+                    public void onLanguageIdentified(String languageCode, float confidence) {
+                        new Handler(Looper.getMainLooper()).post(() -> {
+                            if (languageCode != null && !languageCode.isEmpty()) {
+                                Log.i(TAG, "Identified language: " + languageCode + " with confidence: " + confidence);
+                                
+                                // Kiểm tra xem ngôn ngữ có được hỗ trợ bởi Translation không
+                                if (isLanguageSupportedByTranslation(languageCode)) {
+                                    detectedLanguage.setValue(languageCode);
+                                } else {
+                                    // Nếu không được hỗ trợ, mặc định là tiếng Anh
+                                    Log.i(TAG, "Language not supported by translation, defaulting to English");
+                                    detectedLanguage.setValue("en");
+                                }
+                            } else {
+                                // Nếu không xác định được ngôn ngữ, mặc định là tiếng Anh
+                                Log.i(TAG, "Could not identify language, defaulting to English");
+                                detectedLanguage.setValue("en");
+                            }
+                            isLoading.setValue(false);
+                        });
                     }
                 });
             }).start();
         };
         
-        // Trì hoãn việc thực hiện nhận diện ngôn ngữ để tránh gọi liên tục
+        // Thêm độ trễ để tránh gọi liên tục khi người dùng đang nhập
         debounceHandler.postDelayed(languageDetectionRunnable, DEBOUNCE_DELAY);
     }
 
     /**
-     * Phát hiện ngôn ngữ dựa trên các ký tự đặc biệt trong văn bản
-     * @param text Văn bản cần phát hiện ngôn ngữ
-     * @return Mã ngôn ngữ (vi, zh, ja, ko, en, ...)
+     * Phương thức này đã được thay thế bởi LanguageIdentificationUtils
+     * @deprecated Sử dụng LanguageIdentificationUtils thay thế
      */
     private String detectLanguageFromText(String text) {
-        if (text == null || text.isEmpty()) {
-            return "en";
-        }
-        
-        // Các mẫu ký tự đặc trưng cho từng ngôn ngữ
-        String vietnameseChars = "[\u00e0\u00e1\u1ea1\u1ea3\u00e3\u00e2\u1ea7\u1ea5\u1ead\u1ea9\u1eab\u0103\u1eb1\u1eaf\u1eb7\u1eb3\u1eb5\u00e8\u00e9\u1eb9\u1ebb\u1ebd\u00ea\u1ec1\u1ebf\u1ec7\u1ec3\u1ec5\u00ec\u00ed\u1ecb\u1ec9\u0129\u00f2\u00f3\u1ecd\u1ecf\u00f5\u00f4\u1ed3\u1ed1\u1ed9\u1ed5\u1ed7\u01a1\u1edd\u1edb\u1ee3\u1edf\u1ee1\u00f9\u00fa\u1ee5\u1ee7\u0169\u01b0\u1ee9\u1ee9\u1ef1\u1eef\u1eef\u1ef3\u00fd\u1ef5\u1ef7\u1ef9\u0111]"; 
-        String chineseChars = "[\u4E00-\u9FFF]"; // Phạm vi Unicode cho chữ Hán
-        String japaneseChars = "[\u3040-\u309F\u30A0-\u30FF]"; // Hiragana và Katakana
-        String koreanChars = "[\uAC00-\uD7AF\u1100-\u11FF]"; // Hangul
-        String thaiChars = "[\u0E00-\u0E7F]"; // Thai
-        
-        // Đếm số lượng ký tự đặc trưng
-        int vietnameseCount = countMatches(text.toLowerCase(), vietnameseChars);
-        int chineseCount = countMatches(text, chineseChars);
-        int japaneseCount = countMatches(text, japaneseChars);
-        int koreanCount = countMatches(text, koreanChars);
-        int thaiCount = countMatches(text, thaiChars);
-        
-        Log.d(TAG, "Language detection counts - VI: " + vietnameseCount + ", ZH: " + chineseCount + 
-              ", JA: " + japaneseCount + ", KO: " + koreanCount + ", TH: " + thaiCount);
-        
-        // Xác định ngôn ngữ dựa trên số lượng ký tự đặc trưng
-        if (vietnameseCount > 2) {
-            return "vi"; // Tiếng Việt
-        } else if (chineseCount > 2) {
-            return "zh"; // Tiếng Trung
-        } else if (japaneseCount > 2) {
-            return "ja"; // Tiếng Nhật
-        } else if (koreanCount > 2) {
-            return "ko"; // Tiếng Hàn
-        } else if (thaiCount > 2) {
-            return "th"; // Tiếng Thái
-        }
-        
-        // Mặc định là tiếng Anh nếu không phát hiện được ngôn ngữ khác
+        // Mặc định là tiếng Anh
         return "en";
-    }
-    private int countMatches(String text, String regex) {
-        try {
-            Pattern pattern = Pattern.compile(regex);
-            Matcher matcher = pattern.matcher(text);
-            int count = 0;
-            while (matcher.find()) {
-                count++;
-            }
-            return count;
-        } catch (Exception e) {
-            Log.e(TAG, "Error counting matches: " + e.getMessage());
-            return 0;
-        }
     }
     
     /**
-     * Kiểm tra nếu mã ngôn ngữ được hỗ trợ bởi ML Kit Translation
+     * Kiểm tra nếu mã ngôn ngữ được hỗ trợ bời ML Kit Translation
      * @param languageCode Mã ngôn ngữ cần kiểm tra
      * @return true nếu ngôn ngữ được hỗ trợ
      */
@@ -358,166 +294,87 @@ public class TranslationRepository {
             return false;
         }
         
-        // Kiểm tra nếu mã ngôn ngữ nằm trong danh sách các ngôn ngữ hỗ trợ bởi ML Kit Translation
+        // Kiểm tra nếu mã ngôn ngữ nằm trong danh sách các ngôn ngữ hỗ trợ bời ML Kit Translation
         return TranslateLanguage.getAllLanguages().contains(languageCode);
     }
     
     /**
-     * Phát hiện các ngôn ngữ phổ biến dựa trên các từ và mẫu đặc trưng
-     * @param text Văn bản cần phát hiện ngôn ngữ
-     * @return Mã ngôn ngữ hoặc "en" nếu không phát hiện được
+     * Kiểm tra xem văn bản có phải tiếng Việt không dựa trên các đặc điểm của tiếng Việt
+     * @param text Văn bản cần kiểm tra
+     * @return true nếu văn bản có khả năng là tiếng Việt
      */
-    private String detectCommonLanguages(String text) {
+    private boolean checkVietnameseLanguage(String text) {
         if (text == null || text.isEmpty()) {
-            return "en";
+            return false;
         }
         
-        // Chuẩn hóa văn bản
-        String normalizedText = text.toLowerCase().trim();
+        // Đếm số lượng ký tự đặc trưng của tiếng Việt
+        int vietnameseCharCount = 0;
         
-        // Các mẫu và từ đặc trưng cho các ngôn ngữ phổ biến
+        // Các ký tự đặc trưng của tiếng Việt
+        String vietnameseChars = "àáảãạăằẳẵặâầẩẫậèéẻẽẹêềểễệìíỉĩịòóỏõọôồổỗộơờởỡợùúủũụưứừửữđÀÁẢÃẠĂẰẲẴẶÂẦẨẪẬÈÉẺẼẸÊỀỂỄỆÌÍỈĨỊÒÓỎÕỌÔỒỔỖỘƠỜỞỠỢÙÚỦŨỤƯỨỪỬỮĐ";
         
-        // Tiếng Pháp (fr)
-        String[] frenchWords = {"le", "la", "les", "un", "une", "des", "et", "ou", "mais", "donc", "car", "ni", "que", 
-                               "qui", "quoi", "où", "comment", "pourquoi", "quand", "je", "tu", "il", "elle", "nous", 
-                               "vous", "ils", "elles", "mon", "ton", "son", "notre", "votre", "leur", "ce", "cette", 
-                               "ces", "est", "sont", "était", "seront", "avoir", "faire", "dire", "aller", "voir", 
-                               "venir", "vouloir", "pouvoir", "falloir", "devoir"};
+        // Các từ đặc trưng của tiếng Việt
+        String[] vietnameseWords = {"của", "và", "là", "trong", "với", "được", "có", "không", "này", "cho", "các", "bị", "sẽ", "đã", "phải", "còn", "bạn", "tôi", "anh", "chị", "em", "một", "hai", "ba", "bốn", "năm", "sáu", "bảy", "tám", "chín", "mười", "chúng", "họ", "các", "những", "rằng", "thì", "vào", "ra", "trên", "dưới", "trước", "sau", "rồi", "lại", "nên", "cần", "phải", "có", "không", "cùng", "với", "của", "về", "cho", "tại", "vì", "nếu", "mà", "làm", "biết", "nói", "từ", "bởi", "khi", "cứ", "sẽ", "đã", "đang", "được", "bị", "rất", "nhiều", "ít", "quá", "còn", "vẫn", "mới", "cũng", "thêm", "gì", "nào", "ai", "mỗi", "cách", "vậy", "thế", "nên", "chỉ", "bất", "từ", "lúc", "vừa", "lại", "hay", "tất", "mọi", "vài", "cùng", "theo", "như", "vậy", "với", "thì", "làm", "việc", "người", "nước", "thời", "quốc", "phát", "triển", "kinh", "xã", "hội", "chính", "quản", "học", "sinh", "viên", "trường", "lớp", "giáo", "dục", "sức", "khỏe", "bệnh", "viện", "bác", "sĩ", "thuốc", "chữa", "bệnh", "nhân", "dân", "chính", "phủ", "quốc", "hội", "luật", "pháp", "công", "an", "quân", "đội", "quốc", "phòng", "an", "ninh", "quốc", "gia", "chống", "tội", "phạm", "bảo", "vệ", "môi", "trường", "tài", "nguyên", "thiên", "nhiên", "biển", "đảo", "sông", "núi", "rừng", "đất", "nước", "khí", "hậu", "thời", "tiết", "mưa", "nắng", "gió", "bão", "lũ", "lụt", "hạn", "hán", "nóng", "lạnh", "tuyết", "sương", "mù", "mây", "trời", "trăng", "sao", "mặt", "trời", "mặt", "trăng", "vũ", "trụ", "hành", "tinh", "sao", "chổi", "thiên", "thạch", "vũ", "trụ", "không", "gian", "thời", "gian", "năm", "tháng", "tuần", "ngày", "giờ", "phút", "giây", "quá", "khứ", "hiện", "tương", "lai", "trước", "đây", "sau", "này", "sớm", "muộn", "lâu", "mau", "chóng", "chậm", "chạp", "nhanh", "chóng", "từ", "từ", "dần", "dần", "liên", "tục", "luôn", "luôn", "thường", "xuyên", "thỉnh", "thoảng", "hàng", "ngày", "hàng", "tháng", "hàng", "năm", "thường", "niên", "hằng", "năm", "hằng", "ngày", "hằng", "giờ", "hằng", "phút", "hằng", "giây", "trước", "đây", "sau", "đó", "lúc", "này", "bây", "giờ", "lúc", "đó", "hôm", "nay", "hôm", "qua", "ngày", "mai", "tuần", "này", "tuần", "sau", "tháng", "này", "tháng", "sau", "năm", "nay", "năm", "ngoái", "năm", "sau", "mùa", "xuân", "mùa", "hạ", "mùa", "thu", "mùa", "đông", "mùa", "mưa", "mùa", "nắng", "mùa", "khô", "mùa", "lũ", "mùa", "bão", "mùa", "hè", "mùa", "đông", "mùa", "màng", "mùa", "gặt", "mùa", "vụ", "mùa", "màng", "mùa", "thu", "hoạch", "mùa", "giáng", "sinh", "mùa", "tết", "mùa", "lễ", "hội", "mùa", "cưới", "mùa", "thi", "mùa", "tuyển", "sinh", "mùa", "tuyển", "dụng", "mùa", "du", "lịch", "mùa", "mua", "sắm", "mùa", "giảm", "giá", "mùa", "khuyến", "mãi", "mùa", "sale", "mùa", "black", "friday"};
         
-        // Tiếng Tây Ban Nha (es)
-        String[] spanishWords = {"el", "la", "los", "las", "un", "una", "unos", "unas", "y", "o", "pero", "porque", 
-                                "como", "cuando", "donde", "quien", "que", "yo", "tu", "el", "ella", "nosotros", 
-                                "vosotros", "ellos", "ellas", "mi", "tu", "su", "nuestro", "vuestro", "su", "este", 
-                                "esta", "estos", "estas", "es", "son", "era", "serán", "tener", "hacer", "decir", 
-                                "ir", "ver", "venir", "querer", "poder", "deber"};
+        // Đếm số lượng ký tự đặc trưng của tiếng Việt
+        for (char c : text.toCharArray()) {
+            if (vietnameseChars.indexOf(c) >= 0) {
+                vietnameseCharCount++;
+            }
+        }
         
-        // Tiếng Đức (de)
-        String[] germanWords = {"der", "die", "das", "ein", "eine", "und", "oder", "aber", "weil", "wie", "wenn", 
-                               "wo", "wer", "was", "ich", "du", "er", "sie", "es", "wir", "ihr", "sie", "mein", 
-                               "dein", "sein", "unser", "euer", "ihr", "dieser", "diese", "dieses", "ist", "sind", 
-                               "war", "werden", "haben", "machen", "sagen", "gehen", "sehen", "kommen", "wollen", 
-                               "können", "müssen", "sollen"};
-        
-        // Tiếng Ý (it)
-        String[] italianWords = {"il", "lo", "la", "i", "gli", "le", "un", "uno", "una", "e", "o", "ma", "perché", 
-                                "come", "quando", "dove", "chi", "che", "cosa", "io", "tu", "lui", "lei", "noi", 
-                                "voi", "loro", "mio", "tuo", "suo", "nostro", "vostro", "loro", "questo", "questa", 
-                                "è", "sono", "era", "saranno", "avere", "fare", "dire", "andare", "vedere", 
-                                "venire", "volere", "potere", "dovere"};
-        
-        // Tiếng Bồ Đào Nha (pt)
-        String[] portugueseWords = {"o", "a", "os", "as", "um", "uma", "uns", "umas", "e", "ou", "mas", "porque", 
-                                   "como", "quando", "onde", "quem", "que", "eu", "tu", "ele", "ela", "nós", 
-                                   "vós", "eles", "elas", "meu", "teu", "seu", "nosso", "vosso", "seu", "este", 
-                                   "esta", "estes", "estas", "é", "são", "era", "serão", "ter", "fazer", "dizer", 
-                                   "ir", "ver", "vir", "querer", "poder", "dever"};
-        
-        // Tiếng Nga (ru)
-        String[] russianWords = {"и", "в", "не", "что", "он", "на", "я", "с", "со", "как", 
-                               "а", "то", "все", "она", "так", "его", "но", "да", "ты", "к", 
-                               "у", "же", "вы", "за", "бы", "по", "только", "ее", "мне", "был", 
-                               "чтобы", "было", "вот", "от", "меня", "еще", "нет", "о", "из", "ему"};
-        
-        // Tiếng Ả Rập (ar)
-        String arabicChars = "[\u0600-\u06FF]";
-        
-        // Tiếng Hindi (hi)
-        String hindiChars = "[\u0900-\u097F]";
-        
-        // Đếm số lượng từ đặc trưng cho mỗi ngôn ngữ
-        int frenchCount = 0;
-        int spanishCount = 0;
-        int germanCount = 0;
-        int italianCount = 0;
-        int portugueseCount = 0;
-        int russianCount = 0;
-        
-        // Đếm số lượng từ tiếng Pháp
-        for (String word : frenchWords) {
-            if (containsWord(normalizedText, word)) {
-                frenchCount++;
-                if (frenchCount >= 2) {
-                    Log.d(TAG, "Detected French words: " + frenchCount);
-                    return "fr";
+        // Đếm số lượng từ đặc trưng của tiếng Việt
+        int vietnameseWordCount = 0;
+        String[] words = text.toLowerCase().split("\\s+");
+        for (String word : words) {
+            for (String vWord : vietnameseWords) {
+                if (word.equals(vWord)) {
+                    vietnameseWordCount++;
+                    break;
                 }
             }
         }
         
-        // Đếm số lượng từ tiếng Tây Ban Nha
-        for (String word : spanishWords) {
-            if (containsWord(normalizedText, word)) {
-                spanishCount++;
-                if (spanishCount >= 2) {
-                    Log.d(TAG, "Detected Spanish words: " + spanishCount);
-                    return "es";
-                }
-            }
-        }
-        
-        // Đếm số lượng từ tiếng Đức
-        for (String word : germanWords) {
-            if (containsWord(normalizedText, word)) {
-                germanCount++;
-                if (germanCount >= 2) {
-                    Log.d(TAG, "Detected German words: " + germanCount);
-                    return "de";
-                }
-            }
-        }
-        
-        // Đếm số lượng từ tiếng Ý
-        for (String word : italianWords) {
-            if (containsWord(normalizedText, word)) {
-                italianCount++;
-                if (italianCount >= 2) {
-                    Log.d(TAG, "Detected Italian words: " + italianCount);
-                    return "it";
-                }
-            }
-        }
-        
-        // Đếm số lượng từ tiếng Bồ Đào Nha
-        for (String word : portugueseWords) {
-            if (containsWord(normalizedText, word)) {
-                portugueseCount++;
-                if (portugueseCount >= 2) {
-                    Log.d(TAG, "Detected Portuguese words: " + portugueseCount);
-                    return "pt";
-                }
-            }
-        }
-        
-        // Đếm số lượng từ tiếng Nga
-        for (String word : russianWords) {
-            if (normalizedText.contains(word)) {
-                russianCount++;
-                if (russianCount >= 2) {
-                    Log.d(TAG, "Detected Russian words: " + russianCount);
-                    return "ru";
-                }
-            }
-        }
-        
-        // Kiểm tra các ký tự tiếng Ả Rập
-        int arabicCount = countMatches(normalizedText, arabicChars);
-        if (arabicCount >= 3) {
-            Log.d(TAG, "Detected Arabic characters: " + arabicCount);
-            return "ar";
-        }
-        
-        // Kiểm tra các ký tự tiếng Hindi
-        int hindiCount = countMatches(normalizedText, hindiChars);
-        if (hindiCount >= 3) {
-            Log.d(TAG, "Detected Hindi characters: " + hindiCount);
-            return "hi";
-        }
-        
-        // Mặc định là tiếng Anh nếu không phát hiện được ngôn ngữ khác
-        return "en";
+        // Nếu có ít nhất 2 ký tự đặc trưng hoặc 1 từ đặc trưng của tiếng Việt, có khả năng là tiếng Việt
+        return (vietnameseCharCount >= 2 || vietnameseWordCount >= 1);
     }
     
     /**
-     * Kiểm tra nếu văn bản chứa từ cụ thể (tách biệt bởi khoảng trắng hoặc dấu câu)
+     * Kiểm tra xem văn bản có phải tiếng Tây Ban Nha không dựa trên các từ đặc trưng
+     * @param text Văn bản cần kiểm tra
+     * @return true nếu văn bản có khả năng là tiếng Tây Ban Nha
+     */
+    private boolean checkSpanishLanguage(String text) {
+        if (text == null || text.isEmpty()) {
+            return false;
+        }
+        
+        // Các từ đặc trưng của tiếng Tây Ban Nha
+        String[] spanishWords = {"el", "la", "los", "las", "un", "una", "unos", "unas", "y", "o", "pero", "porque", 
+                "como", "cuando", "donde", "quien", "que", "yo", "tu", "el", "ella", "nosotros", 
+                "vosotros", "ellos", "ellas", "mi", "tu", "su", "nuestro", "vuestro", "su", "este", 
+                "esta", "estos", "estas", "es", "son", "era", "serán", "tener", "hacer", "decir", 
+                "ir", "ver", "venir", "querer", "poder", "deber", "para", "por", "con", "sin", "de", "en", "a", "entre",
+                "hasta", "desde", "sobre", "bajo", "tras", "durante", "mediante", "según", "contra", "hacia"};
+        
+        // Đếm số lượng từ đặc trưng của tiếng Tây Ban Nha
+        int spanishWordCount = 0;
+        String[] words = text.toLowerCase().split("\\s+");
+        for (String word : words) {
+            for (String sWord : spanishWords) {
+                if (word.equals(sWord)) {
+                    spanishWordCount++;
+                    break;
+                }
+            }
+        }
+        
+        // Nếu có ít nhất 3 từ đặc trưng của tiếng Tây Ban Nha, có khả năng là tiếng Tây Ban Nha
+        return spanishWordCount >= 3;
+    }
+    
+    /**
      * @param text Văn bản cần kiểm tra
      * @param word Từ cần tìm
      * @return true nếu tìm thấy từ
@@ -538,93 +395,10 @@ public class TranslationRepository {
     }
     
     /**
-     * Kiểm tra nếu văn bản chứa các từ tiếng Việt thông dụng
-     * @param text Văn bản cần kiểm tra
-     * @return true nếu chứa từ tiếng Việt thông dụng
+     * Phương thức này đã được thay thế bởi LanguageIdentificationUtils
+     * @deprecated Sử dụng LanguageIdentificationUtils thay thế
      */
     private boolean containsVietnameseWords(String text) {
-        if (text == null || text.isEmpty()) {
-            return false;
-        }
-        
-        // Chuyển văn bản về chữ thường và loại bỏ dấu cách để dễ kiểm tra
-        String normalizedText = text.toLowerCase().trim();
-        
-        // Danh sách các từ tiếng Việt thông dụng có dấu
-        String[] vietnameseWords = {
-            "có", "không", "và", "là", "của", "cho", "trong", "với", "bị", "bởi", 
-            "từ", "đến", "còn", "đã", "sẽ", "rằng", "nhưng", "nên", "cần", "phải", 
-            "trên", "dưới", "tôi", "anh", "chị", "em", "bạn", "chúng", "họ", "người", 
-            "một", "hai", "ba", "bốn", "năm", "sáu", "bảy", "tám", "chín", "mười", 
-            "trăm", "nghìn", "triệu", "tỷ", "thì", "mà", "hoặc", "hay", "cũng", "vậy",
-            "này", "đó", "ấy", "kia", "thế", "về", "đi", "lên", "xuống", "ra"
-        };
-        
-        // Danh sách các từ tiếng Việt thông dụng không dấu
-        String[] vietnameseWordsNoDiacritics = {
-            "co", "khong", "va", "la", "cua", "cho", "trong", "voi", "bi", "boi", 
-            "tu", "den", "con", "da", "se", "rang", "nhung", "nen", "can", "phai", 
-            "tren", "duoi", "toi", "anh", "chi", "em", "ban", "chung", "ho", "nguoi", 
-            "mot", "hai", "ba", "bon", "nam", "sau", "bay", "tam", "chin", "muoi", 
-            "tram", "nghin", "trieu", "ty", "thi", "ma", "hoac", "hay", "cung", "vay",
-            "nay", "do", "ay", "kia", "the", "ve", "di", "len", "xuong", "ra",
-            "vao", "lai", "noi", "lam", "an", "uong", "ngu", "choi", "hoc", "biet",
-            "thich", "yeu", "ghet", "muon", "cam", "thay", "nhin", "nghe", "noi", "goi",
-            "chao", "tam", "biet", "xin", "cam", "on", "vui", "buon", "gian", "so"
-        };
-        
-        // Các cụm từ tiếng Việt đặc trưng
-        String[] vietnamesePhrases = {
-            "cam on", "xin chao", "tam biet", "rat vui", "khong co", "co the", "da co", 
-            "se co", "rat tot", "rat hay", "rat dep", "rat ngon", "rat vui", "rat buon", 
-            "rat kho", "rat de", "rat nhieu", "rat it", "rat lon", "rat nho",
-            "nguoi viet", "tieng viet", "viet nam", "nguoi ta", "nha toi", "cho toi",
-            "di hoc", "di lam", "di choi", "di ngu", "di an", "di uong", "di ve",
-            "lam on", "lam gi", "lam sao", "lam the nao", "lam viec", "lam bai",
-            "noi chuyen", "noi gi", "noi sao", "noi the", "noi voi", "noi vay",
-            "biet roi", "biet chua", "biet gi", "biet sao", "biet the", "biet vay"
-        };
-        
-        // Kiểm tra từ tiếng Việt có dấu
-        int vietnameseWordCount = 0;
-        for (String word : vietnameseWords) {
-            if (normalizedText.contains(word)) {
-                vietnameseWordCount++;
-                Log.d(TAG, "Found Vietnamese word with diacritics: " + word);
-                if (vietnameseWordCount >= 1) {
-                    return true;
-                }
-            }
-        }
-        
-        // Kiểm tra từ tiếng Việt không dấu
-        int vietnameseWordNoDiacriticsCount = 0;
-        for (String word : vietnameseWordsNoDiacritics) {
-            if (containsWord(normalizedText, word)) {
-                vietnameseWordNoDiacriticsCount++;
-                Log.d(TAG, "Found Vietnamese word without diacritics: " + word);
-                if (vietnameseWordNoDiacriticsCount >= 2) {
-                    return true;
-                }
-            }
-        }
-        
-        // Kiểm tra cụm từ tiếng Việt đặc trưng
-        for (String phrase : vietnamesePhrases) {
-            if (normalizedText.contains(phrase)) {
-                Log.d(TAG, "Found Vietnamese phrase: " + phrase);
-                return true;
-            }
-        }
-        
-        // Kiểm tra các từ có dấu tiếng Việt
-        String vietnameseChars = "[\u00e0\u00e1\u1ea1\u1ea3\u00e3\u00e2\u1ea7\u1ea5\u1ead\u1ea9\u1eab\u0103\u1eb1\u1eaf\u1eb7\u1eb3\u1eb5\u00e8\u00e9\u1eb9\u1ebb\u1ebd\u00ea\u1ec1\u1ebf\u1ec7\u1ec3\u1ec5\u00ec\u00ed\u1ecb\u1ec9\u0129\u00f2\u00f3\u1ecd\u1ecf\u00f5\u00f4\u1ed3\u1ed1\u1ed9\u1ed5\u1ed7\u01a1\u1edd\u1edb\u1ee3\u1edf\u1ee1\u00f9\u00fa\u1ee5\u1ee7\u0169\u01b0\u1ee9\u1ee9\u1ef1\u1eef\u1eef\u1ef3\u00fd\u1ef5\u1ef7\u1ef9\u0111]";
-        int vietnameseCharCount = countMatches(normalizedText, vietnameseChars);
-        if (vietnameseCharCount >= 2) {
-            Log.d(TAG, "Detected Vietnamese characters: " + vietnameseCharCount);
-            return true;
-        }
-        
         return false;
     }
 
@@ -633,33 +407,31 @@ public class TranslationRepository {
      * @param text Text to translate
      * @param sourceLanguageCode Source language code
      * @param targetLanguageCode Target language code
-     * @return LiveData<TranslationResult>
      */
-    public LiveData<TranslationResult> translateText(String text, String sourceLanguageCode, String targetLanguageCode) {
-        // Create MutableLiveData for translation result
-        MutableLiveData<TranslationResult> translationResult = new MutableLiveData<>();
+    public void translateText(String text, String sourceLanguageCode, String targetLanguageCode) {
+        // Sử dụng MutableLiveData hiện có thay vì tạo mới
         
         // Check if text is empty
         if (text == null || text.isEmpty()) {
             TranslationResult result = new TranslationResult(false, "", "Text is empty", text);
-            translationResult.setValue(result);
-            return translationResult;
+            this.translationResult.setValue(result);
+            return;
         }
         
         // Kiểm tra xem mã ngôn ngữ có hợp lệ không
         if (sourceLanguageCode == null || sourceLanguageCode.isEmpty() ||
             targetLanguageCode == null || targetLanguageCode.isEmpty()) {
             TranslationResult result = new TranslationResult(false, "", "Invalid language code", text);
-            translationResult.setValue(result);
-            return translationResult;
+            this.translationResult.setValue(result);
+            return;
         }
         
         // Kiểm tra xem ngôn ngữ nguồn và đích có giống nhau không
         if (sourceLanguageCode.equals(targetLanguageCode)) {
             // Nếu giống nhau, trả về văn bản gốc mà không cần dịch
             TranslationResult result = new TranslationResult(true, text, "", text);
-            translationResult.setValue(result);
-            return translationResult;
+            this.translationResult.setValue(result);
+            return;
         }
         
         // Set loading state
@@ -695,25 +467,23 @@ public class TranslationRepository {
                                 // Translation successful
                                 Log.d(TAG, "Translation result: " + translatedText);
                                 TranslationResult result = new TranslationResult(true, translatedText, "", text);
-                                translationResult.setValue(result);
+                                this.translationResult.setValue(result);
                                 isLoading.setValue(false);
                             })
                             .addOnFailureListener(e -> {
                                 // Translation failed
                                 Log.e(TAG, "Translation error: " + e.getMessage());
                                 TranslationResult result = new TranslationResult(false, "", "Translation failed: " + e.getMessage(), text);
-                                translationResult.setValue(result);
+                                this.translationResult.setValue(result);
                                 isLoading.setValue(false);
                             });
                 })
                 .addOnFailureListener(e -> {
                     Log.e(TAG, "Model download failed: " + e.getMessage());
                     TranslationResult result = new TranslationResult(false, "", "Failed to download language model: " + e.getMessage(), text);
-                    translationResult.setValue(result);
+                    this.translationResult.setValue(result);
                     isLoading.setValue(false);
                 });
-                
-        return translationResult;
     }
 
     // Phương thức performTranslation đã được tích hợp vào translateText

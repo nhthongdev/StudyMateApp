@@ -15,9 +15,11 @@ import java.util.List;
 
 import hcmute.edu.vn.thongvavan.finalproject.model.ModelLanguage;
 import hcmute.edu.vn.thongvavan.finalproject.model.RecognizedText;
+import hcmute.edu.vn.thongvavan.finalproject.model.TranslationHistoryItem;
 import hcmute.edu.vn.thongvavan.finalproject.model.TranslationResult;
 import hcmute.edu.vn.thongvavan.finalproject.repository.ImageRepository;
 import hcmute.edu.vn.thongvavan.finalproject.repository.TextRecognitionRepository;
+import hcmute.edu.vn.thongvavan.finalproject.repository.TranslationHistoryRepository;
 import hcmute.edu.vn.thongvavan.finalproject.repository.TranslationRepository;
 
 /**
@@ -27,6 +29,7 @@ public class MainViewModel extends AndroidViewModel {
     private final ImageRepository imageRepository;
     private final TextRecognitionRepository textRecognitionRepository;
     private final TranslationRepository translationRepository;
+    private final TranslationHistoryRepository historyRepository;
 
     // LiveData for UI state
     private final MutableLiveData<Boolean> isTranslateButtonVisible = new MutableLiveData<>(false);
@@ -47,6 +50,7 @@ public class MainViewModel extends AndroidViewModel {
         imageRepository = new ImageRepository(application);
         textRecognitionRepository = new TextRecognitionRepository(application);
         translationRepository = new TranslationRepository(application);
+        historyRepository = new TranslationHistoryRepository(application);
     }
 
     /**
@@ -163,18 +167,18 @@ public class MainViewModel extends AndroidViewModel {
     }
     
     /**
-     * Recognize text from an image URI
-     * @param imageUri URI of the image to recognize text from
-     * @return LiveData containing the recognized text result
+     * Nhận diện văn bản từ URI ảnh
+     * @param imageUri URI của ảnh cần nhận diện văn bản
+     * @return LiveData chứa kết quả văn bản đã nhận diện
      */
     public LiveData<RecognizedText> recognizeTextFromImage(Uri imageUri) {
-        // Remove any existing observers to prevent duplicates
+        // Xóa bất kỳ observer hiện có để tránh trùng lắp
         removeObservers();
         
-        // Get result from repository
-        LiveData<RecognizedText> result = textRecognitionRepository.recognizeTextFromImage(imageUri);
-
-        // Create and register loading state observer
+        // Đặt URI ảnh
+        imageRepository.setImageUri(imageUri);
+        
+        // Tạo và đăng ký observer trạng thái loading
         loadingObserver = new Observer<Boolean>() {
             @Override
             public void onChanged(Boolean loading) {
@@ -183,7 +187,7 @@ public class MainViewModel extends AndroidViewModel {
         };
         textRecognitionRepository.isLoading().observeForever(loadingObserver);
         
-        // Create and register loading message observer
+        // Tạo và đăng ký observer thông báo loading
         loadingMessageObserver = new Observer<String>() {
             @Override
             public void onChanged(String message) {
@@ -191,19 +195,20 @@ public class MainViewModel extends AndroidViewModel {
             }
         };
         textRecognitionRepository.getLoadingMessage().observeForever(loadingMessageObserver);
-
-        // Create and register recognized text observer
+        
+        // Tạo và đăng ký observer văn bản đã nhận diện
         recognizedTextObserver = new Observer<RecognizedText>() {
             @Override
             public void onChanged(RecognizedText recognizedText) {
-                if (recognizedText != null) {
-                    recognizedTextLiveData.setValue(recognizedText);
-                    isTranslateButtonVisible.setValue(recognizedText.isSuccess() && !recognizedText.isEmpty());
-                }
+                recognizedTextLiveData.setValue(recognizedText);
+                isTranslateButtonVisible.setValue(true);
             }
         };
+        
+        // Bắt đầu quá trình nhận diện văn bản
+        LiveData<RecognizedText> result = textRecognitionRepository.recognizeTextFromImage(imageUri);
         result.observeForever(recognizedTextObserver);
-
+        
         return result;
     }
     
@@ -363,8 +368,11 @@ public class MainViewModel extends AndroidViewModel {
         // Log dịch văn bản để debug
         android.util.Log.d("MainViewModel", "Translating from " + sourceLanguageCode + " to " + targetLanguageCode + ": " + text);
         
-        // Get result from repository
-        LiveData<TranslationResult> result = translationRepository.translateText(text, sourceLanguageCode, targetLanguageCode);
+        // Gọi phương thức dịch từ repository (không trả về giá trị)
+        translationRepository.translateText(text, sourceLanguageCode, targetLanguageCode);
+        
+        // Lấy LiveData kết quả dịch từ repository
+        LiveData<TranslationResult> result = translationRepository.getTranslationResult();
         
         // Create and register loading state observer
         translationLoadingObserver = new Observer<Boolean>() {
@@ -455,5 +463,57 @@ public class MainViewModel extends AndroidViewModel {
         translationRepository.getDetectedLanguage().observeForever(detectedLanguageObserver);
         
         return translationRepository.getDetectedLanguage();
+    }
+    
+    /**
+     * Lấy danh sách các mục lịch sử dịch
+     * @return LiveData chứa danh sách các mục lịch sử dịch
+     */
+    public LiveData<List<TranslationHistoryItem>> getHistoryItems() {
+        return historyRepository.getHistoryItems();
+    }
+    
+    /**
+     * Tìm kiếm các mục lịch sử dịch theo từ khóa
+     * @param query Từ khóa tìm kiếm
+     * @return Danh sách các mục lịch sử dịch phù hợp với từ khóa
+     */
+    public List<TranslationHistoryItem> searchHistoryItems(String query) {
+        return historyRepository.searchHistoryItems(query);
+    }
+    
+    /**
+     * Thêm một mục lịch sử dịch mới
+     * @param sourceText Văn bản nguồn
+     * @param translatedText Văn bản đã dịch
+     * @param sourceLanguageCode Mã ngôn ngữ nguồn
+     * @param targetLanguageCode Mã ngôn ngữ đích
+     * @param sourceLanguageName Tên ngôn ngữ nguồn
+     * @param targetLanguageName Tên ngôn ngữ đích
+     * @param imageUri URI của hình ảnh (có thể null)
+     */
+    public void addHistoryItem(String sourceText, String translatedText, 
+                             String sourceLanguageCode, String targetLanguageCode,
+                             String sourceLanguageName, String targetLanguageName,
+                             Uri imageUri) {
+        historyRepository.addHistoryItem(sourceText, translatedText, 
+                                        sourceLanguageCode, targetLanguageCode,
+                                        sourceLanguageName, targetLanguageName,
+                                        imageUri);
+    }
+    
+    /**
+     * Xóa một mục lịch sử dịch
+     * @param item Mục lịch sử cần xóa
+     */
+    public void deleteHistoryItem(TranslationHistoryItem item) {
+        historyRepository.deleteHistoryItem(item);
+    }
+    
+    /**
+     * Xóa toàn bộ lịch sử dịch
+     */
+    public void clearHistory() {
+        historyRepository.clearHistory();
     }
 }

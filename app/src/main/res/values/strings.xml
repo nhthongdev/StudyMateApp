@@ -7,4 +7,8 @@
     <string name="camera_preview_description">Xem trước camera để nhận dạng văn bản</string>
     <string name="recognized_text_label">Văn bản đã nhận dạng</string>
     <string name="translated_text_label">Văn bản đã dịch</string>
+    <string name="realtime_translation">Dịch thời gian thực</string>
+    <string name="swap_languages_description">Hoán đổi ngôn ngữ</string>
+    <string name="flash_toggle_description">Đèn flash</string>
+    <string name="detected_language_format">Nhận diện</string>
 </resources>

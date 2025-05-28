@@ -55,21 +55,24 @@ import java.util.Locale;
 import hcmute.edu.vn.thongvavan.finalproject.model.ModelLanguage;
 import hcmute.edu.vn.thongvavan.finalproject.model.RecognizedText;
 import hcmute.edu.vn.thongvavan.finalproject.model.TranslationResult;
+import hcmute.edu.vn.thongvavan.finalproject.utils.ClipboardUtils;
 import hcmute.edu.vn.thongvavan.finalproject.utils.DialogManager;
 import hcmute.edu.vn.thongvavan.finalproject.utils.ImageCaptureUtils;
+import hcmute.edu.vn.thongvavan.finalproject.utils.ImageProcessingUtils;
+import hcmute.edu.vn.thongvavan.finalproject.utils.LanguageUIUtils;
+import hcmute.edu.vn.thongvavan.finalproject.utils.TextFormattingUtils;
+import hcmute.edu.vn.thongvavan.finalproject.utils.TextToSpeechUtils;
+import hcmute.edu.vn.thongvavan.finalproject.utils.UIAnimationUtils;
 import hcmute.edu.vn.thongvavan.finalproject.viewmodel.MainViewModel;
 
-/**
- * MainActivity - Main screen of the application
- * Refactored to use MVVM architecture
- */
+@androidx.camera.core.ExperimentalGetImage
 public class MainActivity extends AppCompatActivity {
     // UI Views
     private MaterialButton inputImageBtn;
     private MaterialButton recognizeTextBtn;
     private MaterialButton translateBtn;
-    private MaterialButton realtimeTranslateBtn;
-    private MaterialButton historyBtn;
+    private com.google.android.material.floatingactionbutton.FloatingActionButton realtimeTranslateBtn;
+    private com.google.android.material.button.MaterialButton historyBtn;
     private ShapeableImageView imageIv;
     private EditText recognizedTextEt;
     private View loadingLayout;
@@ -90,8 +93,8 @@ public class MainActivity extends AppCompatActivity {
     private ImageButton clearTextBtn;
     private ImageButton clearImageBtn;
     
-    // Text-to-Speech engine
-    private android.speech.tts.TextToSpeech tts;
+    // Text-to-Speech và TextInputLayout
+    private TextToSpeechUtils textToSpeechUtils;
     private com.google.android.material.textfield.TextInputLayout targetLanguageLayout;
     
     // Translation variables
@@ -101,6 +104,9 @@ public class MainActivity extends AppCompatActivity {
     
     // TAG
     private static final String TAG = "MAIN_TAG";
+    
+    // Request codes
+    private static final int HISTORY_REQUEST_CODE = 100;
 
     // Dialog manager
     private DialogManager dialogManager;
@@ -120,12 +126,8 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         
-        // Khởi tạo Text-to-Speech engine
-        tts = new android.speech.tts.TextToSpeech(this, status -> {
-            if (status != android.speech.tts.TextToSpeech.SUCCESS) {
-                Log.e(TAG, "Không thể khởi tạo Text-to-Speech");
-            }
-        });
+        // Khởi tạo Text-to-Speech utils
+        textToSpeechUtils = new TextToSpeechUtils(this);
 
         // Set up toolbar
         androidx.appcompat.widget.Toolbar toolbar = findViewById(R.id.toolbar);
@@ -287,7 +289,7 @@ public class MainActivity extends AppCompatActivity {
             // Show loading effect
             showLoadingEffect("Đang nhận diện văn bản...");
             
-            // Recognize text from image
+            // Recognize text from image using ViewModel
             viewModel.recognizeTextFromImage(imageUri);
         });
         
@@ -362,12 +364,14 @@ public class MainActivity extends AppCompatActivity {
             translateText(text, detectedLanguageCode, selectedTargetLanguage.getLanguageCode());
         });
         
-        // Real-time translation button click - chức năng chưa phát triển
+        // Real-time translation button click
         realtimeTranslateBtn.setOnClickListener(v -> {
-            // Tạm thời thông báo tính năng đang phát triển
-            Toast.makeText(MainActivity.this, "Tính năng đang được phát triển", Toast.LENGTH_SHORT).show();
-            // Intent intent = new Intent(MainActivity.this, RealtimeTranslationActivity.class);
-            // startActivity(intent);
+            // Tạo hiệu ứng rung nhẹ khi nhấn nút
+            vibrate(30);
+            
+            // Chuyển sang màn hình dịch real-time
+            Intent intent = new Intent(MainActivity.this, RealTimeTranslationActivity.class);
+            startActivity(intent);
         });
         
         // History button click
@@ -493,8 +497,7 @@ public class MainActivity extends AppCompatActivity {
         copySourceBtn.setOnClickListener(v -> {
             String text = recognizedTextEt.getText().toString().trim();
             if (!text.isEmpty()) {
-                copyToClipboard(text);
-                Toast.makeText(this, "Đã sao chép văn bản nguồn", Toast.LENGTH_SHORT).show();
+                ClipboardUtils.copyToClipboardWithToast(this, text, "Source Text", "Đã sao chép văn bản nguồn");
             }
         });
         
@@ -502,8 +505,7 @@ public class MainActivity extends AppCompatActivity {
         copyTranslatedBtn.setOnClickListener(v -> {
             String text = translatedTextTv.getText().toString().trim();
             if (!text.isEmpty()) {
-                copyToClipboard(text);
-                Toast.makeText(this, "Đã sao chép văn bản đã dịch", Toast.LENGTH_SHORT).show();
+                ClipboardUtils.copyToClipboardWithToast(this, text, "Translated Text", "Đã sao chép văn bản đã dịch");
             }
         });
         
@@ -511,7 +513,7 @@ public class MainActivity extends AppCompatActivity {
         shareTranslatedBtn.setOnClickListener(v -> {
             String text = translatedTextTv.getText().toString().trim();
             if (!text.isEmpty()) {
-                shareText(text);
+                ClipboardUtils.shareText(this, text, "Chia sẻ qua");
             }
         });
         
@@ -519,7 +521,10 @@ public class MainActivity extends AppCompatActivity {
         speakSourceBtn.setOnClickListener(v -> {
             String text = recognizedTextEt.getText().toString().trim();
             if (!text.isEmpty()) {
-                speakText(text, detectedLanguageCode);
+                boolean success = textToSpeechUtils.speakText(text, detectedLanguageCode);
+                if (!success) {
+                    showError("Ngôn ngữ này không được hỗ trợ đọc");
+                }
             }
         });
         
@@ -527,8 +532,18 @@ public class MainActivity extends AppCompatActivity {
         speakTranslatedBtn.setOnClickListener(v -> {
             String text = translatedTextTv.getText().toString().trim();
             if (!text.isEmpty() && selectedTargetLanguage != null) {
-                speakText(text, selectedTargetLanguage.getLanguageCode());
+                boolean success = textToSpeechUtils.speakText(text, selectedTargetLanguage.getLanguageCode());
+                if (!success) {
+                    showError("Ngôn ngữ này không được hỗ trợ đọc");
+                }
             }
+        });
+        
+        // History button click
+        historyBtn.setOnClickListener(v -> {
+            // Mở màn hình lịch sử dịch
+            Intent intent = new Intent(MainActivity.this, HistoryActivity.class);
+            startActivityForResult(intent, HISTORY_REQUEST_CODE);
         });
     }
 
@@ -593,18 +608,16 @@ public class MainActivity extends AppCompatActivity {
         }
 
         try {
-            // Kiểm tra quyền truy cập
-            try (InputStream stream = getContentResolver().openInputStream(imageUri)) {
-                if (stream == null) {
-                    throw new IOException("Cannot open input stream for URI: " + imageUri);
-                }
+            // Kiểm tra xem URI có hợp lệ không sử dụng lớp tiện ích
+            if (!ImageProcessingUtils.isValidImageUri(this, imageUri)) {
+                throw new IOException("Cannot open input stream for URI: " + imageUri);
             }
 
             // Cập nhật URI trong ViewModel
             viewModel.setImageUri(imageUri);
 
-            // Xử lý và hiển thị ảnh với hướng đúng
-            Bitmap bitmap = loadBitmapWithCorrectOrientation(imageUri);
+            // Xử lý và hiển thị ảnh với hướng đúng sử dụng lớp tiện ích
+            Bitmap bitmap = ImageProcessingUtils.loadBitmapWithCorrectOrientation(this, imageUri);
             if (bitmap != null) {
                 imageIv.setImageBitmap(bitmap);
                 imageIv.setVisibility(View.VISIBLE);
@@ -627,81 +640,7 @@ public class MainActivity extends AppCompatActivity {
         }
     }
     
-    /**
-     * Tải bitmap từ URI và sửa hướng dựa trên thông tin EXIF
-     * @param imageUri URI của ảnh
-     * @return Bitmap đã được sửa hướng hoặc null nếu có lỗi
-     */
-    private Bitmap loadBitmapWithCorrectOrientation(Uri imageUri) {
-        try {
-            // Đọc bitmap từ URI
-            InputStream inputStream = getContentResolver().openInputStream(imageUri);
-            if (inputStream == null) return null;
-            
-            // Tạo bitmap từ input stream
-            Bitmap bitmap = BitmapFactory.decodeStream(inputStream);
-            inputStream.close();
-            
-            // Đọc thông tin EXIF để xác định hướng
-            ExifInterface exif = null;
-            try {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                    // Với Android 7.0 trở lên, có thể đọc EXIF từ URI
-                    inputStream = getContentResolver().openInputStream(imageUri);
-                    if (inputStream != null) {
-                        exif = new ExifInterface(inputStream);
-                        inputStream.close();
-                    }
-                } else {
-                    // Với Android cũ hơn, cần chuyển URI thành đường dẫn file
-                    String[] projection = {MediaStore.Images.Media.DATA};
-                    Cursor cursor = getContentResolver().query(imageUri, projection, null, null, null);
-                    if (cursor != null) {
-                        if (cursor.moveToFirst()) {
-                            String path = cursor.getString(cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DATA));
-                            exif = new ExifInterface(path);
-                        }
-                        cursor.close();
-                    }
-                }
-            } catch (Exception e) {
-                Log.e(TAG, "Error reading EXIF: " + e.getMessage());
-            }
-            
-            // Nếu không thể đọc EXIF, trả về bitmap gốc
-            if (exif == null) return bitmap;
-            
-            // Xác định góc xoay dựa trên thông tin EXIF
-            int orientation = exif.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL);
-            int rotationAngle = 0;
-            
-            switch (orientation) {
-                case ExifInterface.ORIENTATION_ROTATE_90:
-                    rotationAngle = 90;
-                    break;
-                case ExifInterface.ORIENTATION_ROTATE_180:
-                    rotationAngle = 180;
-                    break;
-                case ExifInterface.ORIENTATION_ROTATE_270:
-                    rotationAngle = 270;
-                    break;
-            }
-            
-            // Nếu không cần xoay, trả về bitmap gốc
-            if (rotationAngle == 0) return bitmap;
-            
-            // Xoay bitmap theo góc đã xác định
-            Matrix matrix = new Matrix();
-            matrix.postRotate(rotationAngle);
-            Bitmap rotatedBitmap = Bitmap.createBitmap(bitmap, 0, 0, bitmap.getWidth(), bitmap.getHeight(), matrix, true);
-            bitmap.recycle(); // Giải phóng bộ nhớ
-            
-            return rotatedBitmap;
-        } catch (Exception e) {
-            Log.e(TAG, "Error processing bitmap: " + e.getMessage());
-            return null;
-        }
-    }
+    // Phương thức loadBitmapWithCorrectOrientation đã được chuyển sang lớp ImageProcessingUtils
     private void showError(String message) {
         // Vibrate để báo lỗi
         try {
@@ -872,29 +811,56 @@ public class MainActivity extends AppCompatActivity {
         super.onCreateContextMenu(menu, v, menuInfo);
         if (v.getId() == R.id.recognizedTextEt) {
             menu.add(0, v.getId(), 0, "Copy");
+            menu.add(0, v.getId(), 0, "Paste");
             menu.add(0, v.getId(), 0, "Share");
         }
     }
 
     @Override
     public boolean onContextItemSelected(@NonNull MenuItem item) {
-        String text = recognizedTextEt.getText().toString().trim();
-        if (text.isEmpty()) {
-            showError("No text to " + item.getTitle().toString().toLowerCase());
-            return true;
-        }
-
         if (item.getTitle().equals("Copy")) {
+            String text = recognizedTextEt.getText().toString().trim();
+            if (text.isEmpty()) {
+                showError("Không có văn bản để sao chép");
+                return true;
+            }
             android.content.ClipboardManager clipboard = (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
             android.content.ClipData clip = android.content.ClipData.newPlainText("Recognized Text", text);
             clipboard.setPrimaryClip(clip);
-            Toast.makeText(this, "Text copied to clipboard", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "Đã sao chép văn bản", Toast.LENGTH_SHORT).show();
+            return true;
+        } else if (item.getTitle().equals("Paste")) {
+            android.content.ClipboardManager clipboard = (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+            if (!clipboard.hasPrimaryClip()) {
+                showError("Không có văn bản trong bộ nhớ tạm");
+                return true;
+            }
+            
+            android.content.ClipData.Item clipItem = clipboard.getPrimaryClip().getItemAt(0);
+            String pasteText = clipItem.getText().toString();
+            
+            if (pasteText.isEmpty()) {
+                showError("Không có văn bản trong bộ nhớ tạm");
+                return true;
+            }
+            
+            // Chèn văn bản vào vị trí con trỏ hoặc thay thế văn bản đã chọn
+            int start = Math.max(recognizedTextEt.getSelectionStart(), 0);
+            int end = Math.max(recognizedTextEt.getSelectionEnd(), 0);
+            recognizedTextEt.getText().replace(Math.min(start, end), Math.max(start, end), pasteText);
+            
+            Toast.makeText(this, "Đã dán văn bản", Toast.LENGTH_SHORT).show();
             return true;
         } else if (item.getTitle().equals("Share")) {
+            String text = recognizedTextEt.getText().toString().trim();
+            if (text.isEmpty()) {
+                showError("Không có văn bản để chia sẻ");
+                return true;
+            }
             Intent shareIntent = new Intent(Intent.ACTION_SEND);
             shareIntent.setType("text/plain");
             shareIntent.putExtra(Intent.EXTRA_TEXT, text);
-            startActivity(Intent.createChooser(shareIntent, "Share via"));
+            startActivity(Intent.createChooser(shareIntent, "Chia sẻ qua"));
             return true;
         }
 
@@ -965,40 +931,15 @@ public class MainActivity extends AppCompatActivity {
      * Set up language spinner with available languages
      */
     private void setupLanguageSpinner() {
-        // Create adapter for language spinner
-        ArrayAdapter<ModelLanguage> adapter = new ArrayAdapter<ModelLanguage>(this, android.R.layout.simple_dropdown_item_1line, availableLanguages) {
-            @Override
-            public View getView(int position, View convertView, ViewGroup parent) {
-                TextView textView = (TextView) super.getView(position, convertView, parent);
-                textView.setText(getItem(position).getLanguageTitle());
-                return textView;
-            }
-
-            @Override
-            public View getDropDownView(int position, View convertView, ViewGroup parent) {
-                TextView textView = (TextView) super.getDropDownView(position, convertView, parent);
-                textView.setText(getItem(position).getLanguageTitle());
-                return textView;
-            }
-        };
-
-        // Set adapter to spinner
-        targetLanguageSpinner.setAdapter(adapter);
-
-        // Set item click listener
-        targetLanguageSpinner.setOnItemClickListener((parent, view, position, id) -> {
-            // Get selected language
-            selectedTargetLanguage = availableLanguages.get(position);
-            
-            // Update target language display
-            targetLanguageDisplay.setText(selectedTargetLanguage.getLanguageTitle());
-            
-            // Hide the dropdown layout after selection
-            targetLanguageLayout.setVisibility(View.GONE);
-            
-            // Show translation controls
-            translationControlsLayout.setVisibility(View.VISIBLE);
-        });
+        LanguageUIUtils.setupLanguageSpinner(
+            this,
+            targetLanguageSpinner,
+            availableLanguages,
+            targetLanguageLayout,
+            targetLanguageDisplay,
+            translationControlsLayout,
+            selectedLanguage -> selectedTargetLanguage = selectedLanguage
+        );
     }
     
     /**
@@ -1053,28 +994,14 @@ public class MainActivity extends AppCompatActivity {
      * @param message Thông báo hiển thị
      */
     private void showLoadingEffect(String message) {
-        loadingMessageTv.setText(message);
-        if (loadingLayout.getVisibility() != View.VISIBLE) {
-            loadingLayout.setAlpha(0f);
-            loadingLayout.setVisibility(View.VISIBLE);
-            loadingLayout.animate()
-                    .alpha(1f)
-                    .setDuration(200)
-                    .start();
-        }
+        UIAnimationUtils.showLoadingEffect(loadingLayout, loadingMessageTv, message);
     }
     
     /**
      * Ẩn hiệu ứng loading
      */
     private void hideLoadingEffect() {
-        if (loadingLayout.getVisibility() == View.VISIBLE) {
-            loadingLayout.animate()
-                    .alpha(0f)
-                    .setDuration(200)
-                    .withEndAction(() -> loadingLayout.setVisibility(View.GONE))
-                    .start();
-        }
+        UIAnimationUtils.hideLoadingEffect(loadingLayout);
     }
     
     /**
@@ -1082,9 +1009,7 @@ public class MainActivity extends AppCompatActivity {
      * @param text Văn bản cần sao chép
      */
     private void copyToClipboard(String text) {
-        android.content.ClipboardManager clipboard = (android.content.ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
-        android.content.ClipData clip = android.content.ClipData.newPlainText("Translated Text", text);
-        clipboard.setPrimaryClip(clip);
+        ClipboardUtils.copyToClipboard(this, text, "Translated Text");
     }
     
     /**
@@ -1092,33 +1017,7 @@ public class MainActivity extends AppCompatActivity {
      * @param text Văn bản cần chia sẻ
      */
     private void shareText(String text) {
-        Intent shareIntent = new Intent(Intent.ACTION_SEND);
-        shareIntent.setType("text/plain");
-        shareIntent.putExtra(Intent.EXTRA_TEXT, text);
-        startActivity(Intent.createChooser(shareIntent, "Chia sẻ qua"));
-    }
-    
-    /**
-     * Đọc văn bản bằng Text-to-Speech
-     * @param text Văn bản cần đọc
-     * @param languageCode Mã ngôn ngữ
-     */
-    private void speakText(String text, String languageCode) {
-        if (tts == null) {
-            showError("Không thể khởi tạo Text-to-Speech");
-            return;
-        }
-        
-        // Thiết lập ngôn ngữ
-        int result = tts.setLanguage(new Locale(languageCode));
-        
-        if (result == android.speech.tts.TextToSpeech.LANG_MISSING_DATA ||
-            result == android.speech.tts.TextToSpeech.LANG_NOT_SUPPORTED) {
-            showError("Ngôn ngữ này không được hỗ trợ đọc");
-        } else {
-            // Đọc văn bản
-            tts.speak(text, android.speech.tts.TextToSpeech.QUEUE_FLUSH, null, null);
-        }
+        ClipboardUtils.shareText(this, text, "Chia sẻ qua");
     }
 
     /**
@@ -1179,9 +1078,12 @@ public class MainActivity extends AppCompatActivity {
                     Log.d("TRANSLATION_DEBUG", "Dịch thành công từ " + finalSourceLanguageName + 
                           " sang " + finalTargetLanguageName + ": " + result.getTranslatedText());
                     
+                    // Giữ nguyên định dạng xuống dòng của văn bản nguồn
+                    String formattedTranslatedText = TextFormattingUtils.preserveLineBreaksSimple(text, result.getTranslatedText());
+                
                     // Hiển thị văn bản đã dịch với hiệu ứng fade-in
                     translatedTextTv.setAlpha(0f);
-                    translatedTextTv.setText(result.getTranslatedText());
+                    translatedTextTv.setText(formattedTranslatedText);
                     translatedTextTv.animate()
                             .alpha(1f)
                             .setDuration(300)
@@ -1191,6 +1093,17 @@ public class MainActivity extends AppCompatActivity {
                     if (translatedTextLayout.getVisibility() != View.VISIBLE) {
                         translatedTextLayout.setVisibility(View.VISIBLE);
                     }
+                    
+                    // Lưu vào lịch sử dịch
+                    viewModel.addHistoryItem(
+                        text,
+                        result.getTranslatedText(),
+                        sourceLanguageCode,
+                        targetLanguageCode,
+                        finalSourceLanguageName,
+                        finalTargetLanguageName,
+                        viewModel.getImageUri().getValue()
+                    );
                 } else {
                     // Hiển thị lỗi
                     Log.e("TRANSLATION_DEBUG", "Lỗi dịch: " + result.getErrorMessage());
@@ -1199,5 +1112,60 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
         });
+    }
+    
+    /**
+     * Tạo hiệu ứng rung nhẹ khi người dùng tương tác với các nút
+     * @param duration Thời gian rung tính bằng mili giây
+     */
+    private void vibrate(int duration) {
+        Vibrator vibrator = (Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
+        if (vibrator != null && vibrator.hasVibrator()) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                vibrator.vibrate(VibrationEffect.createOneShot(duration, VibrationEffect.DEFAULT_AMPLITUDE));
+            } else {
+                // Sử dụng phương thức cũ cho các thiết bị cũ hơn
+                vibrator.vibrate(duration);
+            }
+        }
+    }
+    
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        
+        if (requestCode == HISTORY_REQUEST_CODE && resultCode == RESULT_OK && data != null) {
+            // Lấy dữ liệu từ lịch sử
+            String sourceText = data.getStringExtra("SOURCE_TEXT");
+            String translatedText = data.getStringExtra("TRANSLATED_TEXT");
+            String sourceLanguageCode = data.getStringExtra("SOURCE_LANGUAGE_CODE");
+            String targetLanguageCode = data.getStringExtra("TARGET_LANGUAGE_CODE");
+            
+            // Cập nhật văn bản nguồn
+            if (sourceText != null && !sourceText.isEmpty()) {
+                recognizedTextEt.setText(sourceText);
+            }
+            
+            // Cập nhật ngôn ngữ nguồn
+            if (sourceLanguageCode != null && !sourceLanguageCode.isEmpty()) {
+                detectedLanguageCode = sourceLanguageCode;
+                LanguageUIUtils.updateSourceLanguageDisplay(sourceLanguageTv, sourceLanguageCode, availableLanguages);
+            }
+            
+            // Cập nhật ngôn ngữ đích
+            if (targetLanguageCode != null && !targetLanguageCode.isEmpty()) {
+                selectedTargetLanguage = LanguageUIUtils.updateTargetLanguageDisplay(
+                    targetLanguageDisplay, targetLanguageCode, availableLanguages);
+            }
+            
+            // Hiển thị văn bản đã dịch
+            if (translatedText != null && !translatedText.isEmpty()) {
+                translatedTextTv.setText(translatedText);
+                translatedTextLayout.setVisibility(View.VISIBLE);
+                translationControlsLayout.setVisibility(View.VISIBLE);
+            }
+            
+            Toast.makeText(this, "Đã tải lịch sử dịch", Toast.LENGTH_SHORT).show();
+        }
     }
 }

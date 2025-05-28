@@ -36,6 +36,17 @@
         <item name="android:windowContentOverlay">@null</item>
     </style>
     
+    <!-- Fullscreen theme for camera activities -->
+    <style name="Theme.FinalProject.Fullscreen" parent="Theme.FinalProject">
+        <item name="windowActionBar">false</item>
+        <item name="windowNoTitle">true</item>
+        <item name="android:windowFullscreen">false</item>
+        <item name="android:windowTranslucentStatus">true</item>
+        <item name="android:windowTranslucentNavigation">true</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+    </style>
+    
     <!-- Button style -->
     <style name="AppButtonStyle" parent="Widget.MaterialComponents.Button">
         <item name="cornerRadius">12dp</item>
