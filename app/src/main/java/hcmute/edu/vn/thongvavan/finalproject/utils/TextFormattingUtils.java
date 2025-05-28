@@ -16,22 +16,64 @@ public class TextFormattingUtils {
             return translatedText;
         }
         
-        // Đếm số lần xuống dòng trong văn bản nguồn
-        int sourceLineBreaks = countLineBreaks(sourceText);
+        // Cách tiếp cận đơn giản hơn: tách văn bản nguồn theo dòng
+        String[] sourceLines = sourceText.split("\\n");
         
-        // Nếu văn bản nguồn không có xuống dòng, trả về văn bản đã dịch
-        if (sourceLineBreaks == 0) {
+        // Nếu văn bản nguồn chỉ có 1 dòng, trả về văn bản đã dịch
+        if (sourceLines.length <= 1) {
             return translatedText;
         }
         
-        // Xác định vị trí xuống dòng trong văn bản nguồn
-        int[] sourceLineBreakPositions = findLineBreakPositions(sourceText);
+        // Tính toán độ dài trung bình của mỗi dòng trong văn bản nguồn
+        int totalSourceChars = 0;
+        for (String line : sourceLines) {
+            totalSourceChars += line.length();
+        }
+        float avgSourceLineLength = totalSourceChars / (float) sourceLines.length;
         
-        // Tính toán tỷ lệ vị trí xuống dòng trong văn bản nguồn
-        float[] sourceLineBreakRatios = calculateLineBreakRatios(sourceText, sourceLineBreakPositions);
+        // Tính toán số dòng cần có trong văn bản đã dịch
+        float translatedToSourceRatio = translatedText.length() / (float) sourceText.length();
+        int estimatedLines = Math.max(sourceLines.length, Math.round(translatedText.length() / avgSourceLineLength));
         
-        // Áp dụng tỷ lệ vào văn bản đã dịch
-        return applyLineBreaks(translatedText, sourceLineBreakRatios);
+        // Tách văn bản đã dịch thành các đoạn văn có độ dài tương đương
+        StringBuilder result = new StringBuilder();
+        int charsPerLine = Math.round(translatedText.length() / (float) estimatedLines);
+        
+        // Đảm bảo charsPerLine không quá nhỏ
+        charsPerLine = Math.max(charsPerLine, 10);
+        
+        int startPos = 0;
+        while (startPos < translatedText.length()) {
+            int endPos = Math.min(startPos + charsPerLine, translatedText.length());
+            
+            // Tìm vị trí kết thúc từ gần nhất để tránh cắt giữa từ
+            if (endPos < translatedText.length()) {
+                while (endPos > startPos && !Character.isWhitespace(translatedText.charAt(endPos))) {
+                    endPos--;
+                }
+                // Nếu không tìm thấy khoảng trắng, sử dụng vị trí ban đầu
+                if (endPos == startPos) {
+                    endPos = Math.min(startPos + charsPerLine, translatedText.length());
+                }
+            }
+            
+            // Thêm đoạn văn bản vào kết quả
+            result.append(translatedText.substring(startPos, endPos));
+            
+            // Thêm xuống dòng nếu không phải đoạn cuối cùng
+            if (endPos < translatedText.length()) {
+                result.append("\n");
+            }
+            
+            // Cập nhật vị trí bắt đầu cho đoạn tiếp theo
+            startPos = endPos;
+            // Bỏ qua khoảng trắng ở đầu đoạn tiếp theo
+            while (startPos < translatedText.length() && Character.isWhitespace(translatedText.charAt(startPos))) {
+                startPos++;
+            }
+        }
+        
+        return result.toString();
     }
     
     /**
